@@ -3,47 +3,85 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BBQ Cooking Simulator</title>
+  <title>Sunset BBQ Party</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="app">
-    <header class="topbar">
-      <div class="title-block">
-        <p class="eyebrow">BBQ Cooking Simulator</p>
-        <h1>肉を置いて、焼けたら取るだけ</h1>
+  <main class="layout">
+    <section class="panel intro">
+      <p class="eyebrow">Simple BBQ Game</p>
+      <h1>ただ焼くだけの<br>BBQゲーム</h1>
+      <p class="lead">
+        遊び方はとても簡単です。食材を選んで網をクリックして置き、
+        食べごろになったらもう一度クリックして回収してください。
+      </p>
+
+      <div class="stats">
+        <article class="stat-card">
+          <span>スコア</span>
+          <strong id="score">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>焼けた数</span>
+          <strong id="servedCount">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>残り時間</span>
+          <strong id="timeLeft">60s</strong>
+        </article>
+        <article class="stat-card">
+          <span>火力</span>
+          <strong id="heatValue">60%</strong>
+        </article>
       </div>
 
       <div class="controls">
-        <div class="picker" id="ingredientPicker" aria-label="肉の種類">
-          <button type="button" data-type="beef" class="active">牛カルビ</button>
-          <button type="button" data-type="pork">豚バラ</button>
-          <button type="button" data-type="chicken">鶏もも</button>
-        </div>
-
-        <label class="heat-control">
+        <label>
           <span>火力</span>
           <input id="heat" type="range" min="30" max="100" value="60">
         </label>
-
-        <button id="restartButton" type="button" class="restart-button">焼き直す</button>
       </div>
-    </header>
 
-    <section class="game-shell">
-      <canvas id="scene" aria-label="BBQ台ゲーム"></canvas>
-      <div class="hud">
-        <div class="hud-card">
-          <span>選択中</span>
-          <strong id="selectedLabel">牛カルビ</strong>
+      <div class="actions">
+        <button id="toggleButton" type="button">一時停止</button>
+        <button id="restartButton" type="button" class="secondary">最初から遊ぶ</button>
+      </div>
+    </section>
+
+    <section class="scene-shell">
+      <canvas id="scene" aria-label="シンプルBBQゲーム画面"></canvas>
+      <div class="scene-caption" id="sceneCaption">食材を選んで、空いている網をクリックしてください。</div>
+    </section>
+
+    <section class="panel control-panel">
+      <div class="station">
+        <div>
+          <p class="eyebrow">How To Play</p>
+          <h2>網をクリックするだけ</h2>
         </div>
-        <div class="hud-card">
-          <span>状態</span>
-          <strong id="statusText">空いている場所をクリックして肉を置く</strong>
-        </div>
+        <p class="panel-copy">
+          空いている網をクリックすると食材を置けます。焼き色がついたらもう一度クリックして回収しましょう。
+          焦げる前の回収で高得点になります。
+        </p>
+      </div>
+
+      <div class="ingredient-picker" id="ingredientPicker" aria-label="食材選択">
+        <button type="button" data-type="beef" class="ingredient-chip active">牛カルビ</button>
+        <button type="button" data-type="corn" class="ingredient-chip">とうもろこし</button>
+        <button type="button" data-type="shrimp" class="ingredient-chip">えび串</button>
+      </div>
+
+      <div class="slot-status">
+        <p class="eyebrow">Selected Food</p>
+        <div id="slotSummary" class="slot-summary">牛カルビを選択中。空いている網をクリックすると焼き始めます。</div>
+      </div>
+
+      <div class="log-area">
+        <p class="eyebrow">Party Log</p>
+        <ul id="logList" class="log-list"></ul>
       </div>
     </section>
   </main>
