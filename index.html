@@ -3,40 +3,103 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>落ち葉の落下シミュレーション</title>
+  <title>Sunset BBQ Party</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="layout">
-    <section class="panel">
-      <p class="eyebrow">Autumn Motion Study</p>
-      <h1>落ち葉が舞い落ちるシミュレーション</h1>
+    <section class="panel intro">
+      <p class="eyebrow">BBQ Memory Game</p>
+      <h1>夕焼けBBQを、<br>みんなでもう一度。</h1>
       <p class="lead">
-        葉ごとの重さ、揺れ、回転、風のゆらぎを少しずつ変えて、
-        単調になりにくい落下運動を再現しています。
+        火加減を見ながら焼いて、ひっくり返して、待っている友人にベストな一皿を届ける
+        疑似体験ゲームです。夕方の空気感まで一緒に持っていきます。
       </p>
+
+      <div class="stats">
+        <article class="stat-card">
+          <span>スコア</span>
+          <strong id="score">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>盛り上がり</span>
+          <strong id="mood">100%</strong>
+        </article>
+        <article class="stat-card">
+          <span>残り時間</span>
+          <strong id="timeLeft">90s</strong>
+        </article>
+        <article class="stat-card">
+          <span>コンボ</span>
+          <strong id="combo">x1</strong>
+        </article>
+      </div>
 
       <div class="controls">
         <label>
-          <span>風の強さ</span>
-          <input id="wind" type="range" min="0" max="100" value="42">
+          <span>火力</span>
+          <input id="heat" type="range" min="20" max="100" value="58">
         </label>
         <label>
-          <span>落葉の枚数</span>
-          <input id="leafCount" type="range" min="12" max="120" value="48">
+          <span>にぎやかさ</span>
+          <input id="vibe" type="range" min="0" max="100" value="68">
         </label>
       </div>
 
       <div class="actions">
         <button id="toggleButton" type="button">一時停止</button>
-        <button id="burstButton" type="button" class="secondary">葉を追加で舞わせる</button>
+        <button id="restartButton" type="button" class="secondary">最初から遊ぶ</button>
       </div>
     </section>
 
     <section class="scene-shell">
-      <canvas id="scene" aria-label="落ち葉のアニメーション"></canvas>
-      <div class="scene-caption">
-        風は一定ではなく、ゆっくり強弱が変わります。
+      <canvas id="scene" aria-label="BBQゲーム画面"></canvas>
+      <div class="scene-caption" id="sceneCaption">空いている網を選んで、食材を置いてください。</div>
+    </section>
+
+    <section class="panel control-panel">
+      <div class="station">
+        <div>
+          <p class="eyebrow">Grill Station</p>
+          <h2>焼き台オペレーション</h2>
+        </div>
+        <p class="panel-copy">
+          焼き台のマスをクリックして選択し、食材を置く・返す・盛り付けるを切り替えます。
+        </p>
+      </div>
+
+      <div class="ingredient-picker" id="ingredientPicker" aria-label="食材選択">
+        <button type="button" data-type="beef" class="ingredient-chip active">牛カルビ</button>
+        <button type="button" data-type="corn" class="ingredient-chip">とうもろこし</button>
+        <button type="button" data-type="shrimp" class="ingredient-chip">えび串</button>
+      </div>
+
+      <div class="actions stack">
+        <button id="placeButton" type="button">網に置く</button>
+        <button id="flipButton" type="button" class="secondary">ひっくり返す</button>
+        <button id="serveButton" type="button" class="secondary">お皿にのせる</button>
+        <button id="discardButton" type="button" class="ghost">焦げたら片付ける</button>
+      </div>
+
+      <div class="slot-status">
+        <p class="eyebrow">Selected Slot</p>
+        <div id="slotSummary" class="slot-summary">スロットを選ぶと焼き加減がここに表示されます。</div>
+      </div>
+
+      <div class="orders">
+        <div class="orders-header">
+          <p class="eyebrow">Friends Waiting</p>
+          <h2>みんなのリクエスト</h2>
+        </div>
+        <div id="orderList" class="order-list"></div>
+      </div>
+
+      <div class="log-area">
+        <p class="eyebrow">Party Log</p>
+        <ul id="logList" class="log-list"></ul>
       </div>
     </section>
   </main>
