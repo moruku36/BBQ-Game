@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>落ち葉の落下シミュレーション</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="layout">
+    <section class="panel">
+      <p class="eyebrow">Autumn Motion Study</p>
+      <h1>落ち葉が舞い落ちるシミュレーション</h1>
+      <p class="lead">
+        葉ごとの重さ、揺れ、回転、風のゆらぎを少しずつ変えて、
+        単調になりにくい落下運動を再現しています。
+      </p>
+
+      <div class="controls">
+        <label>
+          <span>風の強さ</span>
+          <input id="wind" type="range" min="0" max="100" value="42">
+        </label>
+        <label>
+          <span>落葉の枚数</span>
+          <input id="leafCount" type="range" min="12" max="120" value="48">
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="toggleButton" type="button">一時停止</button>
+        <button id="burstButton" type="button" class="secondary">葉を追加で舞わせる</button>
+      </div>
+    </section>
+
+    <section class="scene-shell">
+      <canvas id="scene" aria-label="落ち葉のアニメーション"></canvas>
+      <div class="scene-caption">
+        風は一定ではなく、ゆっくり強弱が変わります。
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
