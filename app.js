@@ -2,24 +2,18 @@ const canvas = document.getElementById("scene");
 const ctx = canvas.getContext("2d");
 
 const heatInput = document.getElementById("heat");
-const vibeInput = document.getElementById("vibe");
 const toggleButton = document.getElementById("toggleButton");
 const restartButton = document.getElementById("restartButton");
 const ingredientPicker = document.getElementById("ingredientPicker");
-const placeButton = document.getElementById("placeButton");
-const flipButton = document.getElementById("flipButton");
-const serveButton = document.getElementById("serveButton");
-const discardButton = document.getElementById("discardButton");
 const scoreOutput = document.getElementById("score");
-const moodOutput = document.getElementById("mood");
+const servedCountOutput = document.getElementById("servedCount");
 const timeOutput = document.getElementById("timeLeft");
-const comboOutput = document.getElementById("combo");
-const orderList = document.getElementById("orderList");
-const logList = document.getElementById("logList");
+const heatValueOutput = document.getElementById("heatValue");
 const slotSummary = document.getElementById("slotSummary");
+const logList = document.getElementById("logList");
 const sceneCaption = document.getElementById("sceneCaption");
 
-const TOTAL_TIME = 90;
+const TOTAL_TIME = 60;
 const SLOT_COUNT = 6;
 
 const INGREDIENTS = {
@@ -27,63 +21,50 @@ const INGREDIENTS = {
     label: "牛カルビ",
     shortLabel: "牛",
     colorRaw: "#b6423a",
-    colorCooked: "#6f341d",
-    colorBurnt: "#261818",
+    colorCooked: "#7b341f",
+    colorBurnt: "#221717",
     accent: "#efc07e",
-    rate: 16,
-    target: [52, 76],
+    rate: 18,
+    idealMin: 48,
+    idealMax: 74,
   },
   corn: {
     label: "とうもろこし",
     shortLabel: "とう",
     colorRaw: "#f3d75d",
-    colorCooked: "#dfa63c",
-    colorBurnt: "#6a4923",
+    colorCooked: "#d99a35",
+    colorBurnt: "#634922",
     accent: "#fff2ab",
-    rate: 11,
-    target: [44, 68],
+    rate: 12,
+    idealMin: 44,
+    idealMax: 68,
   },
   shrimp: {
     label: "えび串",
     shortLabel: "えび",
     colorRaw: "#8f7ea9",
     colorCooked: "#ff9b71",
-    colorBurnt: "#4c2a28",
+    colorBurnt: "#492927",
     accent: "#ffd1be",
-    rate: 13,
-    target: [48, 72],
+    rate: 14,
+    idealMin: 46,
+    idealMax: 70,
   },
 };
 
-const FRIEND_NAMES = [
-  "Haru",
-  "Mio",
-  "Ren",
-  "Sora",
-  "Yuna",
-  "Aoi",
-  "Kai",
-  "Nagi",
-  "Rin",
-];
-
 const state = {
   running: true,
+  ended: false,
   lastTime: 0,
   sceneTime: 0,
-  score: 0,
-  mood: 100,
-  combo: 1,
-  timeLeft: TOTAL_TIME,
   heat: Number(heatInput.value),
-  vibe: Number(vibeInput.value),
+  timeLeft: TOTAL_TIME,
   selectedType: "beef",
-  selectedSlot: 0,
+  score: 0,
+  servedCount: 0,
   grillSlots: [],
-  orders: [],
-  logEntries: [],
   sparks: [],
-  ended: false,
+  logEntries: [],
 };
 
 function random(min, max) {
@@ -94,62 +75,16 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function pick(values) {
-  return values[Math.floor(Math.random() * values.length)];
-}
-
-function createItem(type) {
-  return {
-    type,
-    cookA: 0,
-    cookB: 0,
-    side: "A",
-    flipped: 0,
-  };
-}
-
-function createOrder() {
-  const type = pick(Object.keys(INGREDIENTS));
-  const ingredient = INGREDIENTS[type];
-  const targetCenter = random(ingredient.target[0], ingredient.target[1]);
-  const spread = random(8, 12);
-
-  return {
-    id: crypto.randomUUID(),
-    friend: pick(FRIEND_NAMES),
-    type,
-    min: Math.round(targetCenter - spread),
-    max: Math.round(targetCenter + spread),
-    patience: 100,
-  };
-}
-
 function addLog(message) {
   state.logEntries.unshift(message);
   state.logEntries = state.logEntries.slice(0, 5);
 }
 
-function resetGame() {
-  state.running = true;
-  state.lastTime = 0;
-  state.sceneTime = 0;
-  state.score = 0;
-  state.mood = 100;
-  state.combo = 1;
-  state.timeLeft = TOTAL_TIME;
-  state.heat = Number(heatInput.value);
-  state.vibe = Number(vibeInput.value);
-  state.selectedType = "beef";
-  state.selectedSlot = 0;
-  state.grillSlots = Array.from({ length: SLOT_COUNT }, () => null);
-  state.orders = Array.from({ length: 3 }, () => createOrder());
-  state.logEntries = [];
-  state.sparks = [];
-  state.ended = false;
-
-  addLog("夕焼けBBQスタート。焼き台をクリックして担当ポジションを決めましょう。");
-  syncIngredientButtons();
-  renderPanels();
+function createFood(type) {
+  return {
+    type,
+    progress: 0,
+  };
 }
 
 function resizeCanvas() {
@@ -188,41 +123,28 @@ function slotRects() {
   return rects;
 }
 
-function cookAmount(item) {
-  return (item.cookA + item.cookB) / 2;
-}
-
 function donenessLabel(value) {
-  if (value < 24) {
-    return "まだ生っぽい";
+  if (value < 28) {
+    return "まだ生です";
   }
-  if (value < 46) {
-    return "焼きはじめ";
+  if (value < 48) {
+    return "少しずつ焼けています";
   }
-  if (value < 74) {
-    return "食べごろ";
+  if (value < 75) {
+    return "食べごろです";
   }
   if (value < 92) {
-    return "香ばしい";
+    return "焼きすぎ気味です";
   }
-  return "焦げ気味";
+  return "焦げています";
 }
 
-function updateSlotSummary() {
-  const item = state.grillSlots[state.selectedSlot];
-  if (!item) {
-    slotSummary.textContent =
-      "空きスロットです。食材を選んで「網に置く」を押すと焼き始めます。";
-    return;
-  }
-
-  const ingredient = INGREDIENTS[item.type];
-  const average = Math.round(cookAmount(item));
+function updateSummary() {
+  const ingredient = INGREDIENTS[state.selectedType];
   slotSummary.innerHTML = [
-    `${state.selectedSlot + 1}番網: ${ingredient.label}`,
-    `表 ${Math.round(item.cookA)} / 裏 ${Math.round(item.cookB)} / 平均 ${average}`,
-    `いま上になっている面: ${item.side === "A" ? "表" : "裏"}`,
-    `状態: ${donenessLabel(average)}`,
+    `${ingredient.label}を選択中`,
+    `食べごろの目安: ${ingredient.idealMin} - ${ingredient.idealMax}`,
+    "空いている網をクリックで置く / 置いた食材をクリックで回収",
   ].join("<br>");
 }
 
@@ -230,33 +152,6 @@ function syncIngredientButtons() {
   const chips = ingredientPicker.querySelectorAll(".ingredient-chip");
   chips.forEach((button) => {
     button.classList.toggle("active", button.dataset.type === state.selectedType);
-  });
-}
-
-function renderOrders() {
-  orderList.innerHTML = "";
-
-  state.orders.forEach((order) => {
-    const ingredient = INGREDIENTS[order.type];
-    const card = document.createElement("article");
-    card.className = "order-card";
-
-    const title = document.createElement("h3");
-    title.textContent = `${order.friend} の希望: ${ingredient.label}`;
-
-    const detail = document.createElement("p");
-    detail.textContent = `理想の焼き加減 ${order.min} - ${order.max}。いまの待ち余裕 ${Math.round(order.patience)}%。`;
-
-    const bar = document.createElement("div");
-    bar.className = "patience-bar";
-
-    const fill = document.createElement("div");
-    fill.className = "patience-fill";
-    fill.style.width = `${clamp(order.patience, 0, 100)}%`;
-    bar.appendChild(fill);
-
-    card.append(title, detail, bar);
-    orderList.appendChild(card);
   });
 }
 
@@ -271,163 +166,122 @@ function renderLog() {
 
 function renderPanels() {
   scoreOutput.textContent = String(state.score);
-  moodOutput.textContent = `${Math.round(state.mood)}%`;
+  servedCountOutput.textContent = String(state.servedCount);
   timeOutput.textContent = `${Math.max(0, Math.ceil(state.timeLeft))}s`;
-  comboOutput.textContent = `x${state.combo}`;
+  heatValueOutput.textContent = `${state.heat}%`;
   toggleButton.textContent = state.running ? "一時停止" : "再開";
 
   if (state.ended) {
-    sceneCaption.textContent =
-      `パーティー終了。スコア ${state.score} / 盛り上がり ${Math.round(state.mood)}%。もう一度遊べます。`;
+    sceneCaption.textContent = `終了。スコア ${state.score}、焼けた数 ${state.servedCount}。`;
   } else {
     sceneCaption.textContent =
-      "焼き台をクリックして選択。食材を置く、返す、盛り付けるの順で進めましょう。";
+      "食材を選び、空いている網をクリックして置きます。食べごろでクリック回収です。";
   }
 
-  updateSlotSummary();
-  renderOrders();
+  updateSummary();
   renderLog();
 }
 
-function placeSelectedIngredient() {
-  if (state.ended || !state.running) {
-    return;
-  }
+function resetGame() {
+  state.running = true;
+  state.ended = false;
+  state.lastTime = 0;
+  state.sceneTime = 0;
+  state.heat = Number(heatInput.value);
+  state.timeLeft = TOTAL_TIME;
+  state.selectedType = "beef";
+  state.score = 0;
+  state.servedCount = 0;
+  state.grillSlots = Array.from({ length: SLOT_COUNT }, () => null);
+  state.sparks = [];
+  state.logEntries = [];
 
-  if (state.grillSlots[state.selectedSlot]) {
-    addLog("その網にはすでに食材があります。返すか盛り付けてから次を置きましょう。");
-    renderPanels();
-    return;
-  }
-
-  state.grillSlots[state.selectedSlot] = createItem(state.selectedType);
-  addLog(`${INGREDIENTS[state.selectedType].label}を ${state.selectedSlot + 1}番網 に置きました。`);
+  syncIngredientButtons();
+  addLog("BBQスタート。空いている網をクリックして焼き始めましょう。");
   renderPanels();
 }
 
-function flipSelectedSlot() {
-  const item = state.grillSlots[state.selectedSlot];
-  if (!item || state.ended) {
-    return;
-  }
+function scoreFood(food) {
+  const ingredient = INGREDIENTS[food.type];
+  const progress = food.progress;
 
-  item.side = item.side === "A" ? "B" : "A";
-  item.flipped += 1;
-  addLog(`${INGREDIENTS[item.type].label}をひっくり返しました。`);
-  renderPanels();
+  if (progress >= ingredient.idealMin && progress <= ingredient.idealMax) {
+    return 10;
+  }
+  if (progress < ingredient.idealMin) {
+    return 4;
+  }
+  if (progress < 92) {
+    return 6;
+  }
+  return 1;
 }
 
-function removeSelectedSlot(reason) {
-  const item = state.grillSlots[state.selectedSlot];
-  if (!item) {
+function collectFood(index) {
+  const food = state.grillSlots[index];
+  if (!food) {
     return;
   }
 
-  state.grillSlots[state.selectedSlot] = null;
-  addLog(`${INGREDIENTS[item.type].label}を${reason}。`);
-  renderPanels();
-}
+  const ingredient = INGREDIENTS[food.type];
+  const progress = Math.round(food.progress);
+  const points = scoreFood(food);
 
-function scoreDish(order, item) {
-  const average = cookAmount(item);
-  const bothSidesReady = Math.min(item.cookA, item.cookB) >= 24;
-  const inRange = average >= order.min && average <= order.max;
-  const distance = average < order.min ? order.min - average : average > order.max ? average - order.max : 0;
-  const precision = Math.max(0, 22 - distance);
-  const burnPenalty = average > 94 ? 24 : 0;
-  let points = bothSidesReady ? 26 : 10;
-  points += inRange ? 36 : precision;
-  points -= burnPenalty;
+  state.score += points;
+  state.servedCount += 1;
+  state.grillSlots[index] = null;
 
-  return {
-    average: Math.round(average),
-    bothSidesReady,
-    inRange,
-    points: Math.max(0, Math.round(points)),
-  };
-}
-
-function serveSelectedSlot() {
-  const item = state.grillSlots[state.selectedSlot];
-  if (!item || state.ended) {
-    return;
-  }
-
-  const orderIndex = state.orders.findIndex((order) => order.type === item.type);
-  if (orderIndex === -1) {
-    addLog("この食材を待っている友人がいません。もう少し様子を見るか片付けましょう。");
-    renderPanels();
-    return;
-  }
-
-  const order = state.orders[orderIndex];
-  const result = scoreDish(order, item);
-
-  if (result.points >= 54) {
-    state.combo += 1;
-    state.mood = clamp(state.mood + 8, 0, 100);
+  if (progress >= ingredient.idealMin && progress <= ingredient.idealMax) {
+    addLog(`${ingredient.label}がちょうどよく焼けました。+${points}点`);
     addSparkBurst();
-    addLog(`${order.friend} が大喜び。${INGREDIENTS[item.type].label}は大成功です。`);
-  } else if (result.points >= 30) {
-    state.combo = Math.max(1, state.combo);
-    state.mood = clamp(state.mood + 3, 0, 100);
-    addLog(`${order.friend} に一皿を届けました。いい感じの焼き加減です。`);
+  } else if (progress < ingredient.idealMin) {
+    addLog(`${ingredient.label}を少し早めに回収しました。+${points}点`);
+  } else if (progress < 92) {
+    addLog(`${ingredient.label}は少し焼きすぎでした。+${points}点`);
   } else {
-    state.combo = 1;
-    state.mood = clamp(state.mood - 8, 0, 100);
-    addLog(`${order.friend} は少し惜しい表情。次はもう少し丁寧に焼けそうです。`);
+    addLog(`${ingredient.label}が焦げましたが回収しました。+${points}点`);
   }
 
-  state.score += result.points * state.combo;
-  state.orders.splice(orderIndex, 1, createOrder());
-  state.grillSlots[state.selectedSlot] = null;
   renderPanels();
+}
+
+function placeFood(index) {
+  if (state.grillSlots[index]) {
+    return;
+  }
+
+  const ingredient = INGREDIENTS[state.selectedType];
+  state.grillSlots[index] = createFood(state.selectedType);
+  addLog(`${ingredient.label}を網に置きました。`);
+  renderPanels();
+}
+
+function updateGrill(delta) {
+  const fireBoost = state.heat / 100;
+
+  for (const food of state.grillSlots) {
+    if (!food) {
+      continue;
+    }
+
+    const ingredient = INGREDIENTS[food.type];
+    food.progress += ingredient.rate * fireBoost * delta;
+    food.progress = clamp(food.progress, 0, 110);
+  }
 }
 
 function addSparkBurst() {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
-  for (let i = 0; i < 16; i += 1) {
+  for (let i = 0; i < 14; i += 1) {
     state.sparks.push({
-      x: width * 0.5 + random(-60, 60),
-      y: height * 0.58 + random(-30, 20),
-      vx: random(-38, 38),
-      vy: random(-110, -30),
-      life: random(0.6, 1.1),
-      size: random(2, 5),
+      x: width * 0.5 + random(-70, 70),
+      y: height * 0.6 + random(-20, 20),
+      vx: random(-32, 32),
+      vy: random(-100, -25),
+      life: random(0.5, 0.9),
+      size: random(2, 4),
     });
-  }
-}
-
-function updateOrders(delta) {
-  for (let index = 0; index < state.orders.length; index += 1) {
-    const order = state.orders[index];
-    const patienceDrain = 4 + (100 - state.vibe) * 0.02;
-    order.patience -= patienceDrain * delta * 6;
-
-    if (order.patience <= 0) {
-      state.orders[index] = createOrder();
-      state.combo = 1;
-      state.mood = clamp(state.mood - 12, 0, 100);
-      addLog(`${order.friend} が待ちきれず、別の話題で盛り上がり始めました。`);
-    }
-  }
-}
-
-function updateGrill(delta) {
-  const fireBoost = state.heat / 100;
-  for (const item of state.grillSlots) {
-    if (!item) {
-      continue;
-    }
-
-    const ingredient = INGREDIENTS[item.type];
-    const cookingSide = item.side === "A" ? "cookA" : "cookB";
-    const restSide = item.side === "A" ? "cookB" : "cookA";
-    item[cookingSide] += ingredient.rate * fireBoost * delta;
-    item[restSide] += ingredient.rate * 0.18 * fireBoost * delta;
-    item.cookA = clamp(item.cookA, 0, 110);
-    item.cookB = clamp(item.cookB, 0, 110);
   }
 }
 
@@ -446,21 +300,21 @@ function updateSparks(delta) {
 function finishGame() {
   state.running = false;
   state.ended = true;
-  addLog("今日のBBQはここでひと区切り。次は実際にまた集まりましょう。");
+  addLog("BBQ終了。また焼きたくなったら最初から遊べます。");
   renderPanels();
 }
 
 function update(delta) {
+  updateSparks(delta);
+
   if (!state.running || state.ended) {
     return;
   }
 
   state.timeLeft -= delta;
   updateGrill(delta);
-  updateOrders(delta);
-  updateSparks(delta);
 
-  if (Math.random() < delta * (0.8 + state.heat / 180)) {
+  if (Math.random() < delta * (0.8 + state.heat / 160)) {
     state.sparks.push({
       x: canvas.clientWidth * 0.5 + random(-90, 90),
       y: canvas.clientHeight * 0.67 + random(-10, 10),
@@ -471,20 +325,18 @@ function update(delta) {
     });
   }
 
-  state.mood = clamp(state.mood - delta * 0.6 + state.vibe * 0.004 * delta, 0, 100);
-
-  if (state.timeLeft <= 0 || state.mood <= 0) {
+  if (state.timeLeft <= 0) {
     finishGame();
   }
 }
 
-function ingredientColor(item) {
-  const ingredient = INGREDIENTS[item.type];
-  const average = cookAmount(item);
-  if (average > 92) {
+function foodColor(food) {
+  const ingredient = INGREDIENTS[food.type];
+
+  if (food.progress > 92) {
     return ingredient.colorBurnt;
   }
-  if (average > 48) {
+  if (food.progress > 48) {
     return ingredient.colorCooked;
   }
   return ingredient.colorRaw;
@@ -503,15 +355,6 @@ function drawSky(width, height) {
   ctx.beginPath();
   ctx.arc(width * 0.78, height * 0.2, 54, 0, Math.PI * 2);
   ctx.fill();
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
-  for (let i = 0; i < 4; i += 1) {
-    const x = width * (0.18 + i * 0.16) + Math.sin(state.sceneTime * 0.00025 + i) * 12;
-    const y = height * (0.17 + (i % 2) * 0.05);
-    ctx.beginPath();
-    ctx.ellipse(x, y, 44, 18, 0.06, 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
 
 function drawGround(width, height) {
@@ -527,9 +370,6 @@ function drawGround(width, height) {
   ctx.lineTo(0, height * 0.8);
   ctx.closePath();
   ctx.fill();
-
-  ctx.fillStyle = "rgba(41, 19, 12, 0.28)";
-  ctx.fillRect(width * 0.12, height * 0.72, width * 0.76, height * 0.05);
 }
 
 function drawBanner(width, height) {
@@ -564,6 +404,23 @@ function drawTable(width, height) {
   ctx.fillRect(width * 0.78, height * 0.76, width * 0.04, height * 0.15);
 }
 
+function drawGuests(width, height) {
+  const baseline = height * 0.48;
+  const positions = [0.16, 0.3, 0.7, 0.84];
+  positions.forEach((position, index) => {
+    const cheer = Math.sin(state.sceneTime * 0.003 + index) * 3;
+    const x = width * position;
+    ctx.fillStyle = "#31211f";
+    ctx.beginPath();
+    ctx.arc(x, baseline - 50 + cheer, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = index % 2 === 0 ? "#ffd26f" : "#9dd0ff";
+    ctx.beginPath();
+    ctx.roundRect(x - 20, baseline - 30, 40, 52, 16);
+    ctx.fill();
+  });
+}
+
 function drawGrill(width, height, rects) {
   const grillBody = {
     x: width * 0.2,
@@ -594,30 +451,26 @@ function drawGrill(width, height, rects) {
     ctx.stroke();
   }
 
-  rects.forEach((rect, index) => {
-    const selected = index === state.selectedSlot;
-    ctx.strokeStyle = selected ? "#fff1b5" : "rgba(255, 248, 239, 0.24)";
-    ctx.lineWidth = selected ? 3 : 1.5;
+  rects.forEach((rect) => {
+    ctx.strokeStyle = "rgba(255, 248, 239, 0.24)";
+    ctx.lineWidth = 1.5;
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
-    if (!state.grillSlots[index]) {
-      ctx.fillStyle = "rgba(255, 248, 239, 0.08)";
-      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-    }
+    ctx.fillStyle = "rgba(255, 248, 239, 0.08)";
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
   });
 }
 
-function drawIngredient(rect, item) {
-  const ingredient = INGREDIENTS[item.type];
-  const color = ingredientColor(item);
+function drawIngredient(rect, food) {
+  const ingredient = INGREDIENTS[food.type];
+  const color = foodColor(food);
   const centerX = rect.x + rect.width / 2;
   const centerY = rect.y + rect.height / 2;
-  const average = cookAmount(item);
 
   ctx.save();
   ctx.translate(centerX, centerY);
 
-  if (item.type === "beef") {
+  if (food.type === "beef") {
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.roundRect(-rect.width * 0.26, -rect.height * 0.2, rect.width * 0.52, rect.height * 0.4, 18);
@@ -628,7 +481,7 @@ function drawIngredient(rect, item) {
     ctx.moveTo(-rect.width * 0.16, 0);
     ctx.lineTo(rect.width * 0.16, 0);
     ctx.stroke();
-  } else if (item.type === "corn") {
+  } else if (food.type === "corn") {
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.roundRect(-rect.width * 0.22, -rect.height * 0.18, rect.width * 0.44, rect.height * 0.36, 16);
@@ -656,33 +509,11 @@ function drawIngredient(rect, item) {
     }
   }
 
-  if (average > 82) {
-    ctx.fillStyle = "rgba(255, 249, 232, 0.12)";
-    ctx.fillRect(-rect.width * 0.18, -rect.height * 0.2, rect.width * 0.36, rect.height * 0.1);
-  }
-
-  ctx.fillStyle = "rgba(255, 248, 239, 0.9)";
+  ctx.fillStyle = "rgba(255, 248, 239, 0.92)";
   ctx.font = "700 12px 'Zen Maru Gothic'";
   ctx.textAlign = "center";
-  ctx.fillText(ingredient.shortLabel, 0, rect.height * 0.36);
+  ctx.fillText(`${Math.round(food.progress)}`, 0, rect.height * 0.36);
   ctx.restore();
-}
-
-function drawGuests(width, height) {
-  const baseline = height * 0.48;
-  const positions = [0.16, 0.3, 0.7, 0.84];
-  positions.forEach((position, index) => {
-    const cheer = Math.sin(state.sceneTime * 0.003 + index) * (2 + state.vibe / 40);
-    const x = width * position;
-    ctx.fillStyle = "#31211f";
-    ctx.beginPath();
-    ctx.arc(x, baseline - 50 + cheer, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = index % 2 === 0 ? "#ffd26f" : "#9dd0ff";
-    ctx.beginPath();
-    ctx.roundRect(x - 20, baseline - 30, 40, 52, 16);
-    ctx.fill();
-  });
 }
 
 function drawSparks() {
@@ -707,8 +538,8 @@ function drawOverlay(width, height) {
   ctx.font = "900 34px 'Zen Maru Gothic'";
   ctx.fillText("BBQフィニッシュ", width / 2, height * 0.34);
   ctx.font = "500 18px 'Zen Maru Gothic'";
-  ctx.fillText(`スコア ${state.score} / 盛り上がり ${Math.round(state.mood)}%`, width / 2, height * 0.4);
-  ctx.fillText("もう一度遊ぶで再開できます。", width / 2, height * 0.45);
+  ctx.fillText(`スコア ${state.score} / 焼けた数 ${state.servedCount}`, width / 2, height * 0.4);
+  ctx.fillText("最初から遊ぶでもう一度始められます。", width / 2, height * 0.45);
 }
 
 function drawScene() {
@@ -724,9 +555,9 @@ function drawScene() {
   drawGrill(width, height, rects);
 
   rects.forEach((rect, index) => {
-    const item = state.grillSlots[index];
-    if (item) {
-      drawIngredient(rect, item);
+    const food = state.grillSlots[index];
+    if (food) {
+      drawIngredient(rect, food);
     }
   });
 
@@ -762,6 +593,10 @@ function canvasPoint(event) {
 }
 
 function handleCanvasClick(event) {
+  if (state.ended || !state.running) {
+    return;
+  }
+
   const point = canvasPoint(event);
   const rects = slotRects();
   const hitIndex = rects.findIndex(
@@ -772,9 +607,14 @@ function handleCanvasClick(event) {
       point.y <= rect.y + rect.height
   );
 
-  if (hitIndex !== -1) {
-    state.selectedSlot = hitIndex;
-    renderPanels();
+  if (hitIndex === -1) {
+    return;
+  }
+
+  if (state.grillSlots[hitIndex]) {
+    collectFood(hitIndex);
+  } else {
+    placeFood(hitIndex);
   }
 }
 
@@ -786,14 +626,12 @@ ingredientPicker.addEventListener("click", (event) => {
 
   state.selectedType = button.dataset.type;
   syncIngredientButtons();
+  renderPanels();
 });
 
 heatInput.addEventListener("input", (event) => {
   state.heat = Number(event.target.value);
-});
-
-vibeInput.addEventListener("input", (event) => {
-  state.vibe = Number(event.target.value);
+  renderPanels();
 });
 
 toggleButton.addEventListener("click", () => {
@@ -807,13 +645,6 @@ toggleButton.addEventListener("click", () => {
 
 restartButton.addEventListener("click", () => {
   resetGame();
-});
-
-placeButton.addEventListener("click", placeSelectedIngredient);
-flipButton.addEventListener("click", flipSelectedSlot);
-serveButton.addEventListener("click", serveSelectedSlot);
-discardButton.addEventListener("click", () => {
-  removeSelectedSlot("片付けました");
 });
 
 canvas.addEventListener("click", handleCanvasClick);

@@ -12,11 +12,11 @@
 <body>
   <main class="layout">
     <section class="panel intro">
-      <p class="eyebrow">BBQ Memory Game</p>
-      <h1>夕焼けBBQを、<br>みんなでもう一度。</h1>
+      <p class="eyebrow">Simple BBQ Game</p>
+      <h1>ただ焼くだけの<br>BBQゲーム</h1>
       <p class="lead">
-        火加減を見ながら焼いて、ひっくり返して、待っている友人にベストな一皿を届ける
-        疑似体験ゲームです。夕方の空気感まで一緒に持っていきます。
+        遊び方はとても簡単です。食材を選んで網をクリックして置き、
+        食べごろになったらもう一度クリックして回収してください。
       </p>
 
       <div class="stats">
@@ -25,27 +25,23 @@
           <strong id="score">0</strong>
         </article>
         <article class="stat-card">
-          <span>盛り上がり</span>
-          <strong id="mood">100%</strong>
+          <span>焼けた数</span>
+          <strong id="servedCount">0</strong>
         </article>
         <article class="stat-card">
           <span>残り時間</span>
-          <strong id="timeLeft">90s</strong>
+          <strong id="timeLeft">60s</strong>
         </article>
         <article class="stat-card">
-          <span>コンボ</span>
-          <strong id="combo">x1</strong>
+          <span>火力</span>
+          <strong id="heatValue">60%</strong>
         </article>
       </div>
 
       <div class="controls">
         <label>
           <span>火力</span>
-          <input id="heat" type="range" min="20" max="100" value="58">
-        </label>
-        <label>
-          <span>にぎやかさ</span>
-          <input id="vibe" type="range" min="0" max="100" value="68">
+          <input id="heat" type="range" min="30" max="100" value="60">
         </label>
       </div>
 
@@ -56,18 +52,19 @@
     </section>
 
     <section class="scene-shell">
-      <canvas id="scene" aria-label="BBQゲーム画面"></canvas>
-      <div class="scene-caption" id="sceneCaption">空いている網を選んで、食材を置いてください。</div>
+      <canvas id="scene" aria-label="シンプルBBQゲーム画面"></canvas>
+      <div class="scene-caption" id="sceneCaption">食材を選んで、空いている網をクリックしてください。</div>
     </section>
 
     <section class="panel control-panel">
       <div class="station">
         <div>
-          <p class="eyebrow">Grill Station</p>
-          <h2>焼き台オペレーション</h2>
+          <p class="eyebrow">How To Play</p>
+          <h2>網をクリックするだけ</h2>
         </div>
         <p class="panel-copy">
-          焼き台のマスをクリックして選択し、食材を置く・返す・盛り付けるを切り替えます。
+          空いている網をクリックすると食材を置けます。焼き色がついたらもう一度クリックして回収しましょう。
+          焦げる前の回収で高得点になります。
         </p>
       </div>
 
@@ -77,24 +74,9 @@
         <button type="button" data-type="shrimp" class="ingredient-chip">えび串</button>
       </div>
 
-      <div class="actions stack">
-        <button id="placeButton" type="button">網に置く</button>
-        <button id="flipButton" type="button" class="secondary">ひっくり返す</button>
-        <button id="serveButton" type="button" class="secondary">お皿にのせる</button>
-        <button id="discardButton" type="button" class="ghost">焦げたら片付ける</button>
-      </div>
-
       <div class="slot-status">
-        <p class="eyebrow">Selected Slot</p>
-        <div id="slotSummary" class="slot-summary">スロットを選ぶと焼き加減がここに表示されます。</div>
-      </div>
-
-      <div class="orders">
-        <div class="orders-header">
-          <p class="eyebrow">Friends Waiting</p>
-          <h2>みんなのリクエスト</h2>
-        </div>
-        <div id="orderList" class="order-list"></div>
+        <p class="eyebrow">Selected Food</p>
+        <div id="slotSummary" class="slot-summary">牛カルビを選択中。空いている網をクリックすると焼き始めます。</div>
       </div>
 
       <div class="log-area">
