@@ -1,25 +1,24 @@
 # Sunset BBQ Party
 
-夕焼けのBBQ台で食材を焼くだけの、シンプルなブラウザゲームです。  
-`HTML / CSS / JavaScript` だけで動きます。
+[English](README.md) | [日本語](README.ja.md)
 
-## 遊び方
+A simple browser game for grilling beef, corn, and shrimp before they burn, with adjustable heat and Canvas sunset and ember effects.
 
-1. `index.html` をブラウザで開きます。
-2. 食材を選びます。
-3. 空いている網をクリックして食材を置きます。
-4. 焼けたらその食材をもう一度クリックして回収します。
-5. 焦がしすぎる前に回収して高得点を目指します。
+## Play
 
-## 特徴
+1. Open `index.html` in a browser.
+2. Choose beef, corn, or shrimp.
+3. Click an empty grill position to place the food.
+4. Click cooked food to collect it before it burns.
+5. Adjust the heat and aim for a higher score.
 
-- 操作はクリック中心のシンプル設計
-- 牛カルビ、とうもろこし、えび串を切り替え可能
-- 火力調整あり
-- 夕焼けと火の粉のCanvas演出つき
+`index.html` provides the UI, `styles.css` the appearance, and `app.js` the game logic and Canvas effects.
 
-## ファイル構成
 
-- `index.html`: UI
-- `styles.css`: 見た目
-- `app.js`: ゲームロジックと描画
+## Contents
+
+- [assets/](assets)
+
+## Detailed documentation
+
+The [Japanese guide](README.ja.md) retains the complete original setup instructions, configuration, examples, project status, and limitations. Supporting documents keep their existing language.
