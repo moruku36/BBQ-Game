@@ -73,4 +73,4 @@ Node 標準のテストランナーを使います（Node.js 22 で実行）。�
 npm test
 ```
 
-`tests/core.test.js` は時計を差しかえてルールを検証します。`tests/app.test.js` は実際のページのスクリプトを小さな疑似ブラウザ（`tests/helpers/fake-browser.js`）に読みこんで操作します。本物のブラウザでのテストではないため、レイアウト・描画・音は実機のブラウザで確認が必要です。
+`tests/core.test.js` は注入した時計でルールを、`tests/app.test.js` は疑似ブラウザでページ処理を検証します。Nodeの69件はPASS。別途、新規専用profileの実Chrome headlessでモバイル・PCの58チェックがPASSしました。[ブラウザ検証と画面](BROWSER-VERIFICATION.md)をご覧ください。実機タッチ、iOS Safari、スピーカー音、OS共有sheetはプレイ時の確認項目です。

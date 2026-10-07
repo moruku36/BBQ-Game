@@ -75,4 +75,4 @@ Uses Node's built-in test runner (run here with Node.js 22). No dependencies to 
 npm test
 ```
 
-`tests/core.test.js` covers the rules with an injected clock. `tests/app.test.js` loads the real page scripts into a small fake browser (`tests/helpers/fake-browser.js`) and plays through them. These are not real-browser tests: layout, rendering and audio output still need checking in an actual browser.
+`tests/core.test.js` covers the rules with an injected clock. `tests/app.test.js` loads the real page scripts into a small fake browser (`tests/helpers/fake-browser.js`) and plays through them. All 69 Node tests passed. Separate real Chrome headless verification passed 58 checks across mobile and desktop sizes; see [browser verification and screenshots](BROWSER-VERIFICATION.md). Physical phone touch, iOS Safari, audible speaker output and the native share sheet remain user checks.
