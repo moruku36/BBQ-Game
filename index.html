@@ -2,90 +2,191 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sunset BBQ Party</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fff6e0">
+  <title>BBQ Party</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="layout">
-    <section class="panel intro">
-      <p class="eyebrow">Simple BBQ Game</p>
-      <h1>ただ焼くだけの<br>BBQゲーム</h1>
-      <p class="lead">
-        遊び方はとても簡単です。食材を選んで網をクリックして置き、
-        食べごろになったらもう一度クリックして回収してください。
-      </p>
+  <div class="app" id="app">
+    <canvas class="layer layer-scene" id="scene" aria-hidden="true"></canvas>
 
-      <div class="stats">
-        <article class="stat-card">
-          <span>スコア</span>
-          <strong id="score">0</strong>
-        </article>
-        <article class="stat-card">
-          <span>焼けた数</span>
-          <strong id="servedCount">0</strong>
-        </article>
-        <article class="stat-card">
-          <span>残り時間</span>
-          <strong id="timeLeft">60s</strong>
-        </article>
-        <article class="stat-card">
-          <span>火力</span>
-          <strong id="heatValue">60%</strong>
-        </article>
-      </div>
+    <main class="game" id="gameArea">
+      <header class="topbar">
+        <h1 class="brand">BBQ Party</h1>
+        <span class="player" id="hudPlayer"></span>
+        <button type="button" class="icon-btn" id="muteButton" aria-pressed="false" aria-label="サウンド: オン（押すとミュート）">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+            <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>
+            <path class="snd-wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path class="snd-off" d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+          <span class="icon-btn-text" id="muteText">音あり</span>
+        </button>
+        <button type="button" class="icon-btn" id="pauseButton" aria-label="一時停止">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+            <rect x="6" y="5" width="4.5" height="14" rx="1.5" fill="currentColor"/>
+            <rect x="13.5" y="5" width="4.5" height="14" rx="1.5" fill="currentColor"/>
+          </svg>
+          <span class="icon-btn-text">停止</span>
+        </button>
+      </header>
 
-      <div class="controls">
-        <label>
-          <span>火力</span>
-          <input id="heat" type="range" min="30" max="100" value="60">
-        </label>
-      </div>
-
-      <div class="actions">
-        <button id="toggleButton" type="button">一時停止</button>
-        <button id="restartButton" type="button" class="secondary">最初から遊ぶ</button>
-      </div>
-    </section>
-
-    <section class="scene-shell">
-      <canvas id="scene" aria-label="シンプルBBQゲーム画面"></canvas>
-      <div class="scene-caption" id="sceneCaption">食材を選んで、空いている網をクリックしてください。</div>
-    </section>
-
-    <section class="panel control-panel">
-      <div class="station">
-        <div>
-          <p class="eyebrow">How To Play</p>
-          <h2>網をクリックするだけ</h2>
+      <section class="hud" aria-label="ゲームの状況">
+        <div class="hud-card hud-time" id="timeCard">
+          <span class="hud-label">のこり</span>
+          <span class="hud-value"><strong id="hudTime">60</strong><span class="hud-unit">秒</span></span>
+          <span class="timebar" aria-hidden="true"><span class="timebar-fill" id="hudTimeBar"></span></span>
         </div>
-        <p class="panel-copy">
-          空いている網をクリックすると食材を置けます。焼き色がついたらもう一度クリックして回収しましょう。
-          焦げる前の回収で高得点になります。
+        <div class="hud-card hud-score" id="scoreCard">
+          <span class="hud-label">
+            <svg class="plate" viewBox="0 0 28 18" width="28" height="18" aria-hidden="true" focusable="false">
+              <ellipse cx="14" cy="10" rx="13" ry="7" fill="#fff" stroke="#2b2623" stroke-width="1.6"/>
+              <ellipse cx="14" cy="9.4" rx="8" ry="3.8" fill="none" stroke="#d8402f" stroke-width="1.4"/>
+            </svg>
+            スコア
+          </span>
+          <span class="hud-value"><strong id="hudScore">0</strong></span>
+        </div>
+        <div class="hud-card hud-combo" id="comboCard">
+          <span class="hud-label">コンボ</span>
+          <span class="hud-value"><strong id="hudCombo">0</strong><span class="hud-unit" id="hudMult">x1.0</span></span>
+        </div>
+      </section>
+
+      <section class="popular" aria-label="いま人気の食材">
+        <canvas class="popular-icon" id="popularIcon" width="48" height="48" aria-hidden="true"></canvas>
+        <div class="popular-main">
+          <span class="popular-label">いま人気 <b class="bonus-tag">+50</b></span>
+          <strong class="popular-name" id="popularName">-</strong>
+        </div>
+        <div class="popular-side">
+          <span class="popular-countdown" id="popularCountdown"></span>
+          <span class="popular-next" id="nextWrap">
+            <span class="next-label">つぎ ▶</span>
+            <canvas class="next-icon" id="nextIcon" width="28" height="28" aria-hidden="true"></canvas>
+            <span id="nextName"></span>
+          </span>
+        </div>
+      </section>
+
+      <section class="grill-wrap">
+        <div class="grill" id="grill" role="group" aria-label="グリル（6か所）">
+          <button type="button" class="slot" id="slot-0" data-slot="0"><span class="slot-badge" id="slotBadge-0" hidden></span><span class="slot-plus" id="slotPlus-0" aria-hidden="true">＋</span></button>
+          <button type="button" class="slot" id="slot-1" data-slot="1"><span class="slot-badge" id="slotBadge-1" hidden></span><span class="slot-plus" id="slotPlus-1" aria-hidden="true">＋</span></button>
+          <button type="button" class="slot" id="slot-2" data-slot="2"><span class="slot-badge" id="slotBadge-2" hidden></span><span class="slot-plus" id="slotPlus-2" aria-hidden="true">＋</span></button>
+          <button type="button" class="slot" id="slot-3" data-slot="3"><span class="slot-badge" id="slotBadge-3" hidden></span><span class="slot-plus" id="slotPlus-3" aria-hidden="true">＋</span></button>
+          <button type="button" class="slot" id="slot-4" data-slot="4"><span class="slot-badge" id="slotBadge-4" hidden></span><span class="slot-plus" id="slotPlus-4" aria-hidden="true">＋</span></button>
+          <button type="button" class="slot" id="slot-5" data-slot="5"><span class="slot-badge" id="slotBadge-5" hidden></span><span class="slot-plus" id="slotPlus-5" aria-hidden="true">＋</span></button>
+        </div>
+      </section>
+
+      <p class="status" id="statusLine" role="status" aria-live="polite"></p>
+
+      <section class="tray" id="tray" role="group" aria-label="食材をえらぶ">
+        <button type="button" class="ing" id="ing-shrimp" data-ingredient="shrimp" aria-pressed="true">
+          <canvas class="ing-icon" id="ingIcon-shrimp" width="52" height="52" aria-hidden="true"></canvas>
+          <span class="ing-name" id="ingName-shrimp"></span>
+          <span class="ing-meta" id="ingMeta-shrimp"></span>
+          <span class="ing-pop" id="ingPop-shrimp" hidden>人気 +50</span>
+        </button>
+        <button type="button" class="ing" id="ing-sausage" data-ingredient="sausage" aria-pressed="false">
+          <canvas class="ing-icon" id="ingIcon-sausage" width="52" height="52" aria-hidden="true"></canvas>
+          <span class="ing-name" id="ingName-sausage"></span>
+          <span class="ing-meta" id="ingMeta-sausage"></span>
+          <span class="ing-pop" id="ingPop-sausage" hidden>人気 +50</span>
+        </button>
+        <button type="button" class="ing" id="ing-kalbi" data-ingredient="kalbi" aria-pressed="false">
+          <canvas class="ing-icon" id="ingIcon-kalbi" width="52" height="52" aria-hidden="true"></canvas>
+          <span class="ing-name" id="ingName-kalbi"></span>
+          <span class="ing-meta" id="ingMeta-kalbi"></span>
+          <span class="ing-pop" id="ingPop-kalbi" hidden>人気 +50</span>
+        </button>
+        <button type="button" class="ing" id="ing-corn" data-ingredient="corn" aria-pressed="false">
+          <canvas class="ing-icon" id="ingIcon-corn" width="52" height="52" aria-hidden="true"></canvas>
+          <span class="ing-name" id="ingName-corn"></span>
+          <span class="ing-meta" id="ingMeta-corn"></span>
+          <span class="ing-pop" id="ingPop-corn" hidden>人気 +50</span>
+        </button>
+      </section>
+    </main>
+
+    <canvas class="layer layer-fx" id="fx" aria-hidden="true"></canvas>
+
+    <section class="overlay" id="screenStart" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+      <form class="card" id="startForm" novalidate>
+        <p class="card-eyebrow">60秒 グリルチャレンジ</p>
+        <h2 class="card-title" id="startTitle">BBQ Party</h2>
+        <ol class="howto">
+          <li><b>食材をえらぶ</b>（下のトレイ）</li>
+          <li><b>空いた網をタップ</b>して置く</li>
+          <li>焼けたら<b>もう一度タップ</b>して回収</li>
+        </ol>
+        <ul class="legend" aria-label="焼きかげんの見かた">
+          <li><span class="chip chip-raw">○ 生</span>0点・コンボ終了</li>
+          <li><span class="chip chip-good">◆ GOOD</span>60%</li>
+          <li><span class="chip chip-perfect">★ PERFECT</span>100%</li>
+          <li><span class="chip chip-burnt">✕ コゲ</span>0点・コンボ終了</li>
+        </ul>
+        <p class="card-note">「いま人気」の食材をうまく焼くと +50点。コンボで最大2倍。</p>
+
+        <label class="field" for="nicknameInput">
+          <span class="field-label">ニックネーム（なくてもOK・12文字まで）</span>
+          <input class="field-input" id="nicknameInput" name="nickname" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="24" placeholder="ゲスト" aria-describedby="nicknameError">
+        </label>
+        <p class="field-error" id="nicknameError" role="alert" hidden></p>
+
+        <button type="submit" class="btn btn-primary" id="startButton">スタート</button>
+
+        <p class="card-meta">
+          <span id="challengeInfo"></span>
+          <span id="linkNotice" hidden></span>
         </p>
-      </div>
+        <p class="card-meta"><span id="startBest"></span></p>
+        <p class="card-fine">記録はこの端末だけに保存されます。全国ランキングはありません。</p>
+      </form>
+    </section>
 
-      <div class="ingredient-picker" id="ingredientPicker" aria-label="食材選択">
-        <button type="button" data-type="beef" class="ingredient-chip active">牛カルビ</button>
-        <button type="button" data-type="corn" class="ingredient-chip">とうもろこし</button>
-        <button type="button" data-type="shrimp" class="ingredient-chip">えび串</button>
-      </div>
-
-      <div class="slot-status">
-        <p class="eyebrow">Selected Food</p>
-        <div id="slotSummary" class="slot-summary">牛カルビを選択中。空いている網をクリックすると焼き始めます。</div>
-      </div>
-
-      <div class="log-area">
-        <p class="eyebrow">Party Log</p>
-        <ul id="logList" class="log-list"></ul>
+    <section class="overlay" id="pauseOverlay" role="dialog" aria-modal="true" aria-labelledby="pauseTitle" hidden>
+      <div class="card card-small">
+        <h2 class="card-title" id="pauseTitle">一時停止中</h2>
+        <p class="card-note" id="pauseReason">タイマーも食材も止まっています。</p>
+        <button type="button" class="btn btn-primary" id="resumeButton">つづける</button>
       </div>
     </section>
-  </main>
 
+    <section class="overlay" id="screenResult" role="dialog" aria-modal="true" aria-labelledby="resultTitle" hidden>
+      <div class="card">
+        <p class="card-eyebrow">タイムアップ</p>
+        <h2 class="card-title" id="resultTitle">けっか</h2>
+        <p class="result-player"><span id="resultNickname"></span> さんのスコア</p>
+        <p class="result-score"><strong id="resultScore">0</strong><span>点</span></p>
+        <p class="result-newbest" id="resultNewBest" hidden>★ この端末のベスト更新！</p>
+        <dl class="result-stats">
+          <div><dt>★ PERFECT</dt><dd id="resultPerfect">0</dd></div>
+          <div><dt>✕ コゲ</dt><dd id="resultBurned">0</dd></div>
+          <div><dt>最大コンボ</dt><dd id="resultMaxCombo">0</dd></div>
+        </dl>
+        <p class="card-meta"><span id="resultBest"></span></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary" id="retryButton">同じチャレンジでもう一度</button>
+          <button type="button" class="btn" id="shareButton">チャレンジのリンクを共有</button>
+          <button type="button" class="btn" id="newChallengeButton">新しいチャレンジ</button>
+          <button type="button" class="btn btn-quiet" id="titleButton">名前を変える</button>
+        </div>
+        <p class="share-status" id="shareStatus" role="status" aria-live="polite"></p>
+        <label class="field" id="shareFallback" for="shareFallbackText" hidden>
+          <span class="field-label">このリンクをコピーして送ってください</span>
+          <input class="field-input" id="shareFallbackText" type="text" readonly>
+        </label>
+        <p class="card-meta"><span id="resultSeed"></span></p>
+        <p class="card-fine">記録はこの端末だけに保存されます。全国ランキングはありません。リンクにニックネームは入りません。</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="core.js"></script>
+  <script src="art.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
