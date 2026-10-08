@@ -490,6 +490,7 @@ function boot(options) {
   const context = vm.createContext(window);
   for (const file of ["core.js", "art.js", "i18n.js", "ranking-config.js", "ranking.js", "app.js"]) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, file), "utf8"), context, { filename: file });
+    if (file === "ranking-config.js" && opts.rankingConfig) window.BBQRankingConfig = opts.rankingConfig;
   }
 
   env.$ = (id) => {

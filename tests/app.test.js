@@ -1466,3 +1466,58 @@ test("both READMEs describe the same release and its limits", () => {
   assert.match(en, /not (?:an )?access control/i);
   assert.match(ja, /アクセス制限ではありません/);
 });
+
+
+// A slow leaderboard must never gate or correct the publication disclosure.
+for (const mode of ["delayed", "failed"]) {
+  test("publication immediately shows this round's name/score when top is " + mode, async () => {
+    const pendingTop = [];
+    let issued = 0;
+    const env = started({
+      nickname: "First",
+      rankingConfig: { apiBase: "https://ranking.example.test" },
+      fetch: async (url, options) => {
+        if (url.endsWith("/runs")) {
+          const body = JSON.parse(options.body);
+          issued++;
+          return new Response(JSON.stringify({
+            runId: "10000000-0000-4000-8000-" + String(issued).padStart(12, "0"),
+            seed: body.seed, version: 2, mode: "standard", expiresAt: Date.now() + 900000,
+          }));
+        }
+        if (url.includes("/top?")) return new Promise((resolve, reject) => pendingTop.push({ resolve, reject }));
+        throw new Error("unexpected publication request");
+      },
+    });
+    await env.flush();
+    let priorScore = null;
+    for (const [name, count] of [["First", 1], ["Second", 2]]) {
+      if (name === "Second") {
+        env.again(name);
+        await env.flush();
+      }
+      finishRound(env, count);
+      const score = env.text("resultScore");
+      assert.ok(Number(score) > 0);
+      if (priorScore !== null) assert.notEqual(score, priorScore, "second round has a different score");
+      priorScore = score;
+      // No await or GET completion before checking the just-opened result.
+      assert.equal(env.$("screenResult").hidden, false);
+      assert.ok(env.text("publishDisclosure").includes("「" + name + "」"), "current name");
+      assert.ok(env.text("publishDisclosure").includes("スコア " + score + " 点"), "current score immediately");
+      assert.match(env.text("onlineResultStatus"), /読み込み中/);
+      assert.equal(env.$("publishButton").disabled, true, "consent remains off");
+      const request = pendingTop[pendingTop.length - 1];
+      assert.ok(request, "result refresh is pending");
+      if (mode === "failed") request.reject(new Error("leaderboard unavailable"));
+      else env.advance(8001, 0); // Client timeout, while top fetch still has not answered.
+      await env.flush();
+      assert.match(env.text("onlineResultStatus"), /接続できません/);
+      assert.ok(env.text("publishDisclosure").includes("スコア " + score + " 点"), "failure never replaces current score");
+      env.$("publishConsent").checked = true;
+      env.$("publishConsent").dispatch("change");
+      assert.equal(env.$("publishButton").disabled, false, "only current verified run can be published");
+      assert.ok(env.text("publishDisclosure").includes("「" + name + "」"), "consent uses current name");
+    }
+  });
+}

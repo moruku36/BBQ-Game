@@ -1083,14 +1083,15 @@
     drawEffects();
 
     const results = game.results();
+    const outcome = store.recordScore(nickname, results.score);
+    // Commit this round's result before any synchronous or async online repaint.
+    lastOutcome = outcome;
+    lastResults = results;
     lastScore = results.score;
     online.finish(results.score);
     publishName = displayName(nickname);
     renderOnline();
     void refreshOnline();
-    const outcome = store.recordScore(nickname, results.score);
-    lastOutcome = outcome;
-    lastResults = results;
     setText("resultNickname", el.resultNickname, displayName(nickname));
     setText("resultScore", el.resultScore, results.score);
     setText("resultPerfect", el.resultPerfect, results.perfectCount);
