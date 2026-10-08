@@ -600,15 +600,15 @@ test("a round without points is not recorded and says so", () => {
 
 test("the ranking is labelled as this device only, on every board", () => {
   const html = read("index.html");
-  assert.equal((html.match(/この端末の(?:<wbr>)?上位3人/g) || []).length, 3, "HUD, start card and result card");
+  assert.equal((html.replace(/<[^>]*>/g, "").match(/この端末の上位3人/g) || []).length, 3, "HUD, start card and result card");
   assert.match(html, /同じ名前は1人として、ベストだけを残します/);
   assert.match(html, /名前なしは全員「ゲスト」の1枠です/);
-  assert.equal((html.match(/全国ランキングはありません/g) || []).length, 2);
+  assert.equal((html.match(/公開ランキングへの送信は別に選べます/g) || []).length, 2);
   // The HUD board sits inside the game area, before the grill.
   const game = html.slice(html.indexOf('<main class="game"'), html.indexOf("</main>"));
   assert.ok(game.indexOf('id="hudRankTitle"') > 0 && game.indexOf('id="hudRankTitle"') < game.indexOf('id="grill"'));
   const js = ["core.js", "app.js"].map(read).join("\n");
-  assert.doesNotMatch(js, /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource/, "no shared online ranking");
+  assert.doesNotMatch(read("core.js"), /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource/, "rules and device records stay offline");
 });
 
 test("a version 1 best is shown apart and never ranked under the last nickname", () => {
@@ -1340,12 +1340,13 @@ test("the declared sizes leave the grill most of a 360x640 and a 390x844 screen"
 test("the page is static, loads no external resources and has no heat slider", () => {
   const html = read("index.html");
   const css = read("styles.css");
-  const js = ["core.js", "art.js", "app.js"].map(read).join("\n");
+  const js = ["core.js", "art.js", "i18n.js", "app.js"].map(read).join("\n");
 
   assert.match(html, /<title>BBQ Party<\/title>/);
   assert.doesNotMatch(html, /(?:src|href)="(?:https?:)?\/\//, "no external scripts, styles or fonts");
   assert.doesNotMatch(css, /@import|url\(/);
-  assert.doesNotMatch(js, /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|importScripts/);
+  assert.doesNotMatch(read("core.js"), /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|importScripts/);
+  assert.match(read("ranking-config.js"), /apiBase: "https:\/\/cyhqsliolbcgxvlblvas\.supabase\.co\/functions\/v1\/bbq-ranking"/);
   assert.doesNotMatch(html, /type="range"/);
   assert.doesNotMatch(html + js, /heat|火力/i);
   assert.equal((html.match(/class="slot"/g) || []).length, 6);
@@ -1353,7 +1354,7 @@ test("the page is static, loads no external resources and has no heat slider", (
   for (const id of Core.INGREDIENT_IDS) {
     assert.match(html, new RegExp('id="ing-' + id + '" data-ingredient="' + id + '"'));
   }
-  assert.match(html, /全国ランキングはありません/);
+  assert.match(html, /公開ランキングへの送信は別に選べます/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /:focus-visible/);
 });
@@ -1361,7 +1362,7 @@ test("the page is static, loads no external resources and has no heat slider", (
 test("instructions do not depend on where the tray happens to be", () => {
   const html = read("index.html");
   const texts = [html, read("app.js"), read("README.md"), read("README.ja.md")].join("\n");
-  assert.match(html, /<li><b>食材トレイ<\/b>から食材をえらぶ<\/li>/);
+  assert.match(html.replace(/<[^>]*>/g, ""), /食材トレイから食材をえらぶ/);
   assert.doesNotMatch(texts, /下のトレイ|右のトレイ|上のトレイ|左のトレイ|画面下の|画面右の/);
   assert.doesNotMatch(texts, /tray (?:below|at the bottom|on the right)|(?:bottom|right-hand|lower) tray/i);
 });
@@ -1404,13 +1405,13 @@ test("the page asks not to be indexed and ships a strict CSP that its own code o
     "script-src": "'self'",
     "style-src": "'self'",
     "img-src": "'self'",
-    "connect-src": "'none'",
+    "connect-src": "https://cyhqsliolbcgxvlblvas.supabase.co",
     "object-src": "'none'",
     "base-uri": "'none'",
     "form-action": "'none'",
   });
   // frame-ancestors, sandbox and report-uri are ignored in a meta tag: not claimed.
-  assert.doesNotMatch(meta[1], /unsafe-inline|unsafe-eval|frame-ancestors|report-uri|sandbox|\*|https?:|data:|blob:/);
+  assert.doesNotMatch(meta[1], /unsafe-inline|unsafe-eval|frame-ancestors|report-uri|sandbox|\*|data:|blob:/);
   assert.ok(html.indexOf(meta[0]) < html.indexOf("<link"), "the policy comes before anything it governs");
   assert.ok(html.indexOf(meta[0]) < html.indexOf("<script"));
 
@@ -1419,6 +1420,9 @@ test("the page asks not to be indexed and ships a strict CSP that its own code o
   assert.deepEqual(html.match(/<script[^>]*>[^<]*<\/script>/g), [
     '<script src="core.js"></script>',
     '<script src="art.js"></script>',
+    '<script src="i18n.js"></script>',
+    '<script src="ranking-config.js"></script>',
+    '<script src="ranking.js"></script>',
     '<script src="app.js"></script>',
   ]);
   assert.deepEqual(html.match(/<link rel="stylesheet"[^>]*>/g), ['<link rel="stylesheet" href="styles.css">']);
@@ -1462,3 +1466,58 @@ test("both READMEs describe the same release and its limits", () => {
   assert.match(en, /not (?:an )?access control/i);
   assert.match(ja, /アクセス制限ではありません/);
 });
+
+
+// A slow leaderboard must never gate or correct the publication disclosure.
+for (const mode of ["delayed", "failed"]) {
+  test("publication immediately shows this round's name/score when top is " + mode, async () => {
+    const pendingTop = [];
+    let issued = 0;
+    const env = started({
+      nickname: "First",
+      rankingConfig: { apiBase: "https://ranking.example.test" },
+      fetch: async (url, options) => {
+        if (url.endsWith("/runs")) {
+          const body = JSON.parse(options.body);
+          issued++;
+          return new Response(JSON.stringify({
+            runId: "10000000-0000-4000-8000-" + String(issued).padStart(12, "0"),
+            seed: body.seed, version: 2, mode: "standard", expiresAt: Date.now() + 900000,
+          }));
+        }
+        if (url.includes("/top?")) return new Promise((resolve, reject) => pendingTop.push({ resolve, reject }));
+        throw new Error("unexpected publication request");
+      },
+    });
+    await env.flush();
+    let priorScore = null;
+    for (const [name, count] of [["First", 1], ["Second", 2]]) {
+      if (name === "Second") {
+        env.again(name);
+        await env.flush();
+      }
+      finishRound(env, count);
+      const score = env.text("resultScore");
+      assert.ok(Number(score) > 0);
+      if (priorScore !== null) assert.notEqual(score, priorScore, "second round has a different score");
+      priorScore = score;
+      // No await or GET completion before checking the just-opened result.
+      assert.equal(env.$("screenResult").hidden, false);
+      assert.ok(env.text("publishDisclosure").includes("「" + name + "」"), "current name");
+      assert.ok(env.text("publishDisclosure").includes("スコア " + score + " 点"), "current score immediately");
+      assert.match(env.text("onlineResultStatus"), /読み込み中/);
+      assert.equal(env.$("publishButton").disabled, true, "consent remains off");
+      const request = pendingTop[pendingTop.length - 1];
+      assert.ok(request, "result refresh is pending");
+      if (mode === "failed") request.reject(new Error("leaderboard unavailable"));
+      else env.advance(8001, 0); // Client timeout, while top fetch still has not answered.
+      await env.flush();
+      assert.match(env.text("onlineResultStatus"), /接続できません/);
+      assert.ok(env.text("publishDisclosure").includes("スコア " + score + " 点"), "failure never replaces current score");
+      env.$("publishConsent").checked = true;
+      env.$("publishConsent").dispatch("change");
+      assert.equal(env.$("publishButton").disabled, false, "only current verified run can be published");
+      assert.ok(env.text("publishDisclosure").includes("「" + name + "」"), "consent uses current name");
+    }
+  });
+}

@@ -9,23 +9,26 @@
     return;
   }
 
+  const i18n = window.BBQI18n.create({ navigator: window.navigator, storage: () => window.localStorage });
+  const t = (key, values) => i18n.t(key, values);
+
   const MAX_PARTICLES = 80;
   const MAX_POPUPS = 12;
   const MAX_DPR = 2;
   const URGENT_MS = 10000;
 
   const STAGE_UI = {
-    raw: { badge: "○ 生", say: "まだ生", cls: "is-raw" },
+    raw: { badgeKey: "raw", sayKey: "stageRaw", cls: "is-raw" },
     "good-early": { badge: "◆ GOOD", say: "GOOD", cls: "is-good" },
     perfect: { badge: "★ PERFECT", say: "PERFECT", cls: "is-perfect" },
-    "good-late": { badge: "◇ GOOD 注意", say: "GOOD・もうすぐコゲる", cls: "is-late" },
-    burnt: { badge: "✕ コゲ", say: "コゲた", cls: "is-burnt" },
+    "good-late": { badgeKey: "badgeLate", sayKey: "stageLate", cls: "is-late" },
+    burnt: { badgeKey: "burnt", sayKey: "stageBurnt", cls: "is-burnt" },
   };
   const GRADE_POP = {
     PERFECT: { mark: "★ PERFECT", color: "#57b94f" },
     GOOD: { mark: "◆ GOOD", color: "#f7c531" },
-    RAW: { mark: "○ 生", color: "#e8e0d0" },
-    BURNT: { mark: "✕ コゲ", color: "#ff8a70" },
+    RAW: { get mark() { return t("raw"); }, color: "#e8e0d0" },
+    BURNT: { get mark() { return t("burnt"); }, color: "#ff8a70" },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -130,6 +133,15 @@
   const sceneCtx = el.scene.getContext("2d");
   const fxCtx = el.fx.getContext("2d");
   const store = Core.createRecordStore(() => window.localStorage);
+  const online = window.BBQRanking.create({
+    Core, fetch: (...args) => window.fetch(...args),
+    apiBase: window.BBQRankingConfig.apiBase,
+    AbortController: window.AbortController,
+    setTimeout: window.setTimeout, clearTimeout: window.clearTimeout,
+    testLocal: window.location.hostname === "127.0.0.1" && window.BBQRankingConfig.testLocal === true,
+  });
+  let onlineBoard = { status: online.enabled ? "loading" : "disabled", rows: [] };
+  let boardTicket = 0, publishState = "ready", publishName = "", roundTicket = 0;
   const particles = Core.createParticlePool(MAX_PARTICLES);
   const popups = Core.createParticlePool(MAX_POPUPS);
   const timers = new Set();
@@ -148,9 +160,16 @@
   let slotCache = [];
   let shownPopular = "";
   let shownNext = "";
+  let messageState = null;
+  let lastOutcome = null;
+  let lastResults = null;
+  let pauseReasonKey = "pauseReason";
+  let linkNoticeKey = "";
+  let shareStatusKey = "";
 
+  let inputClock = null;
   function now() {
-    return window.performance.now();
+    return inputClock === null ? window.performance.now() : inputClock;
   }
 
   function reducedMotion() {
@@ -162,26 +181,29 @@
   }
 
   function ingredientName(id) {
-    return Core.ingredientById(id).name;
+    const item = Core.ingredientById(id);
+    return i18n.language() === "en" ? item.nameEn : item.name;
   }
 
   function seconds(ms) {
-    return (ms / 1000).toFixed(1) + "秒";
+    return (ms / 1000).toFixed(1) + t("seconds");
   }
 
   // The PERFECT width in words, next to the number: wider or narrower than usual.
   function perfectTag(item) {
-    return item.perfectMs > Core.PERFECT_WINDOW_MS ? "★広め" : item.perfectMs < Core.PERFECT_WINDOW_MS ? "★狭め" : "★幅";
+    return t(item.perfectMs > Core.PERFECT_WINDOW_MS ? "perfectWide" : item.perfectMs < Core.PERFECT_WINDOW_MS ? "perfectNarrow" : "perfectWidth");
   }
 
   function ingredientLabel(item) {
-    return (
-      item.name + "。" + seconds(item.idealMs) + "・" + item.base + "点・PERFECTの幅" + seconds(item.perfectMs) + (item.level ? "・" + item.level : "")
-    );
+    return t("ingredientLabel", {
+      name: ingredientName(item.id), time: seconds(item.idealMs), base: item.base,
+      window: seconds(item.perfectMs),
+      level: item.level ? " · " + t(item.id === "shiitake" ? "beginner" : "expert") : ""
+    });
   }
 
   function challengeLabel() {
-    return "チャレンジ v" + Core.CHALLENGE_VERSION + " No. " + seed;
+    return t("challenge", { version: Core.CHALLENGE_VERSION, seed });
   }
 
   // textContent only, and only when the value changed.
@@ -474,14 +496,14 @@
       const volume = settings[channel + "Volume"];
       parts.toggle.setAttribute("aria-pressed", muted ? "false" : "true");
       parts.toggle.classList.toggle("is-off", muted);
-      setText(channel + "Toggle", parts.toggle, muted ? "✕ オフ" : "♪ オン");
+      setText(channel + "Toggle", parts.toggle, t(muted ? "off" : "on"));
       setText(channel + "Level", parts.level, volume + "/" + Core.VOLUME_MAX);
       parts.down.disabled = volume <= 1;
       parts.up.disabled = volume >= Core.VOLUME_MAX;
     }
     const state =
-      settings.seMuted && settings.bgmMuted ? "音なし" : settings.seMuted ? "BGMのみ" : settings.bgmMuted ? "効果音のみ" : "音あり";
-    el.soundButton.setAttribute("aria-label", "音の設定（いま: " + state + "）");
+      t(settings.seMuted && settings.bgmMuted ? "soundNone" : settings.seMuted ? "soundBgm" : settings.bgmMuted ? "soundSe" : "soundBoth");
+    el.soundButton.setAttribute("aria-label", t("soundAria", { state }));
     el.soundButton.classList.toggle("is-muted", settings.seMuted && settings.bgmMuted);
     setText("sound", el.soundText, state);
   }
@@ -747,15 +769,15 @@
       const slot = slotEls[i];
       if (!food) {
         slot.className = "slot is-empty";
-        slot.setAttribute("aria-label", "網" + (i + 1) + ": 空き。押すと" + ingredientName(selected) + "を置く");
+        slot.setAttribute("aria-label", t("slotEmpty", { slot: i + 1, name: ingredientName(selected) }));
         badgeEls[i].hidden = true;
         plusEls[i].hidden = false;
         continue;
       }
       const ui = STAGE_UI[food.stage];
       slot.className = "slot " + ui.cls;
-      slot.setAttribute("aria-label", "網" + (i + 1) + ": " + ingredientName(food.id) + "・" + ui.say + "。押すと回収");
-      badgeEls[i].textContent = ui.badge;
+      slot.setAttribute("aria-label", t("slotFood", { slot: i + 1, name: ingredientName(food.id), stage: ui.sayKey ? t(ui.sayKey) : ui.say }));
+      badgeEls[i].textContent = ui.badgeKey ? t(ui.badgeKey) : ui.badge;
       badgeEls[i].hidden = false;
       plusEls[i].hidden = true;
     }
@@ -767,7 +789,7 @@
       const isSelected = item.id === selected;
       const isPopular = item.id === popularId;
       parts.button.setAttribute("aria-pressed", isSelected ? "true" : "false");
-      parts.button.setAttribute("aria-label", ingredientLabel(item) + (isPopular ? "。いま人気 +" + Core.POPULAR_BONUS : ""));
+      parts.button.setAttribute("aria-label", ingredientLabel(item) + (isPopular ? t("trayPopular", { bonus: Core.POPULAR_BONUS }) : ""));
       parts.button.classList.toggle("is-selected", isSelected);
       parts.button.classList.toggle("is-popular", isPopular);
       parts.pop.hidden = !isPopular;
@@ -780,9 +802,9 @@
     for (const board of Object.keys(rankEls)) {
       rankEls[board].forEach((parts, i) => {
         const player = top[i];
-        const shared = player && player.guest && board !== "hudRank" ? "（名前なし共通）" : "";
-        setText(board + "Name" + i, parts.name, player ? player.name + shared : "—");
-        setText(board + "Score" + i, parts.score, player ? player.best + "点" : "");
+        const shared = player && player.guest && board !== "hudRank" ? t("sharedGuest") : "";
+        setText(board + "Name" + i, parts.name, player ? displayName(player.name) + shared : "—");
+        setText(board + "Score" + i, parts.score, player ? player.best + t("points") : "");
         parts.row.classList.toggle("is-empty", !player);
         parts.row.classList.toggle("is-me", Boolean(player) && board !== "startRank" && player.name === nickname);
       });
@@ -805,7 +827,7 @@
     const popular = snap ? snap.popular : Core.popularAt(Core.buildSchedule(seed), 0);
     const next = popular.showNext ? popular.next : "";
     setText("popularName", el.popularName, ingredientName(popular.current));
-    setText("popularCountdown", el.popularCountdown, "あと" + Math.ceil(popular.msToNext / 1000) + "秒");
+    setText("popularCountdown", el.popularCountdown, t("countdown", { seconds: Math.ceil(popular.msToNext / 1000) }));
     setText("nextName", el.nextName, next ? ingredientName(next) : "");
     el.nextWrap.classList.toggle("is-visible", Boolean(next));
     if (shownPopular !== popular.current) {
@@ -819,9 +841,17 @@
     }
   }
 
+  function displayName(name) {
+    return name === Core.DEFAULT_NICKNAME ? t("guest") : name;
+  }
   function say(message) {
+    messageState = null;
     textCache.status = message;
     el.statusLine.textContent = message;
+  }
+  function sayKey(key, values) {
+    messageState = { key, values };
+    el.statusLine.textContent = t(key, values);
   }
 
   // ---- frame loop -------------------------------------------------------------------
@@ -848,12 +878,12 @@
   function handleEvent(event) {
     if (event.type === "burn") {
       puff(event.slot, true, 6);
-      popup(event.slot, "BURNT", GRADE_POP.BURNT.mark, "コンボ終了");
+      popup(event.slot, "BURNT", GRADE_POP.BURNT.mark, t("comboEnd"));
       audio.play("burn");
-      say(ingredientName(event.ingredient) + "がコゲた…コンボ終了");
+      sayKey("burnStatus", { name: ingredientName(event.ingredient), ingredient: event.ingredient });
     } else if (event.type === "phase") {
       audio.play("phase");
-      say("人気が" + ingredientName(event.ingredient) + "に変わった！");
+      sayKey("popularStatus", { name: ingredientName(event.ingredient), ingredient: event.ingredient });
     }
   }
 
@@ -953,6 +983,7 @@
   }
 
   function hideShareFallback() {
+    shareStatusKey = "";
     el.shareFallback.hidden = true;
     el.shareFallbackText.value = "";
     setText("shareStatus", el.shareStatus, "");
@@ -963,6 +994,11 @@
     stopLoop();
     clearTimers();
     audio.stopBgm();
+    online.cancel();
+    roundTicket++;
+    publishState = "ready";
+    publishName = "";
+    $("publishConsent").checked = false;
     particles.clear();
     popups.clear();
     if (game) {
@@ -1005,7 +1041,7 @@
     setText(
       "startLegacy",
       el.startLegacy,
-      legacyBest > 0 ? "旧バージョン(v1・4食材)の最高: " + legacyBest + "点（名前の記録がないためランキング対象外）" : ""
+      legacyBest > 0 ? t("legacyBest", { score: legacyBest }) : ""
     );
     el.startLegacy.hidden = legacyBest <= 0;
     renderRanking();
@@ -1019,15 +1055,17 @@
     selected = Core.INGREDIENT_IDS[0];
     game = Core.createGame({ seed, now });
     game.select(selected);
-    setText("player", el.hudPlayer, nickname);
+    setText("player", el.hudPlayer, displayName(nickname));
     renderRanking();
     renderChallengeInfo();
     syncHash();
     showScreen("game");
     layout();
     game.start();
+    const ticket = roundTicket;
+    online.begin(seed).then(() => { if (ticket === roundTicket) renderOnline(); });
     audio.startBgm(true);
-    say("食材トレイからえらんで、空いた網をタップ！");
+    sayKey("startStatus");
     pump(now());
     startLoop();
     slotEls[0].focus();
@@ -1045,27 +1083,26 @@
     drawEffects();
 
     const results = game.results();
-    lastScore = results.score;
     const outcome = store.recordScore(nickname, results.score);
-    setText("resultNickname", el.resultNickname, nickname);
+    // Commit this round's result before any synchronous or async online repaint.
+    lastOutcome = outcome;
+    lastResults = results;
+    lastScore = results.score;
+    online.finish(results.score);
+    publishName = displayName(nickname);
+    renderOnline();
+    void refreshOnline();
+    setText("resultNickname", el.resultNickname, displayName(nickname));
     setText("resultScore", el.resultScore, results.score);
     setText("resultPerfect", el.resultPerfect, results.perfectCount);
     setText("resultBurned", el.resultBurned, results.burnedCount);
     setText("resultMaxCombo", el.resultMaxCombo, results.maxCombo);
-    setText(
-      "resultBest",
-      el.resultBest,
-      outcome.rank > 0
-        ? nickname + " さんのベスト: " + outcome.best + "点（この端末で" + outcome.rank + "位）"
-        : results.score > 0
-          ? "この端末の上位" + Core.MAX_PLAYERS + "人に入らなかったため、記録されませんでした"
-          : "1点以上とると、この端末のランキングに記録されます"
-    );
+    renderResultBest();
     setText("resultSeed", el.resultSeed, challengeLabel());
     el.resultNewBest.hidden = !outcome.isNewBest;
     el.resultSaveNote.hidden = !outcome.isNewBest || outcome.persisted;
     renderRanking();
-    say("タイムアップ！スコア " + results.score + "点");
+    sayKey("endStatus", { score: results.score });
     audio.stopBgm();
     audio.play("end");
     showScreen("result");
@@ -1084,11 +1121,8 @@
     stopLoop();
     audio.stopBgm();
     audio.suspend();
-    setText(
-      "pauseReason",
-      el.pauseReason,
-      reason === "hidden" ? "画面をはなれたので止めました。タイマーも食材も止まっています。" : "タイマーも食材も止まっています。"
-    );
+    pauseReasonKey = reason === "hidden" ? "hiddenReason" : "pauseReason";
+    setText("pauseReason", el.pauseReason, t(pauseReasonKey));
     showScreen("pause");
     el.resumeButton.focus();
   }
@@ -1121,7 +1155,7 @@
     slotCache = [];
     updateTray(shownPopular);
     if (game && game.status === "running") {
-      say(ingredientName(id) + "をえらんだ");
+      sayKey("selectedStatus", { name: ingredientName(id), ingredient: id });
     }
     pump(now());
   }
@@ -1131,27 +1165,35 @@
       return;
     }
     audio.unlock();
-    const result = game.tapSlot(index);
+    inputClock = window.performance.now();
+    let result, activeMs;
+    try {
+      activeMs = game.snapshot().activeMs;
+      result = game.tapSlot(index);
+    } finally { inputClock = null; }
+    if (result.type === "placed" || result.type === "collected") {
+      online.record({ t: activeMs, slot: index, ingredient: result.ingredient, type: result.type });
+    }
     if (result.type === "placed") {
       audio.play("place");
-      say(ingredientName(result.ingredient) + "を置いた");
+      sayKey("placedStatus", { name: ingredientName(result.ingredient), ingredient: result.ingredient });
     } else if (result.type === "collected") {
       const name = ingredientName(result.ingredient);
       const pop = GRADE_POP[result.grade];
       if (result.grade === "PERFECT" || result.grade === "GOOD") {
-        const sub = "x" + (result.multiplierTenths / 10).toFixed(1) + (result.bonus ? " ・人気+" + result.bonus : "");
+        const sub = "x" + (result.multiplierTenths / 10).toFixed(1) + (result.bonus ? t("popupPopular", { bonus: result.bonus }) : "");
         popup(index, result.grade, pop.mark + " +" + result.points, sub);
         flyToPlate(index, result.ingredient, result.ageMs / Core.ingredientById(result.ingredient).idealMs);
         burst(index, pop.color, result.grade === "PERFECT" ? 12 : 5);
         audio.play(result.grade === "PERFECT" ? "perfect" : "good");
-        say(name + " " + result.grade + "！ +" + result.points + "点");
+        sayKey("collectedStatus", { name, ingredient: result.ingredient, grade: result.grade, points: result.points });
       } else if (result.grade === "RAW") {
-        popup(index, "RAW", pop.mark + " 0", "コンボ終了");
+        popup(index, "RAW", pop.mark + " 0", t("comboEnd"));
         audio.play("raw");
-        say(name + "はまだ生だった… 0点");
+        sayKey("rawStatus", { name, ingredient: result.ingredient });
       } else {
         popup(index, "BURNT", pop.mark + " 0", "");
-        say("コゲた" + name + "を片づけた");
+        sayKey("clearedStatus", { name, ingredient: result.ingredient });
       }
     }
     pump(now());
@@ -1161,7 +1203,7 @@
     event.preventDefault();
     const result = Core.normalizeNickname(el.nicknameInput.value);
     if (!result.ok) {
-      el.nicknameError.textContent = "ニックネームは" + Core.NICKNAME_MAX + "文字までにしてください。";
+      el.nicknameError.textContent = t("nicknameError", { max: Core.NICKNAME_MAX });
       el.nicknameError.hidden = false;
       el.nicknameInput.setAttribute("aria-invalid", "true");
       el.nicknameInput.focus();
@@ -1182,12 +1224,13 @@
 
   function onShare() {
     const url = Core.buildChallengeUrl(window.location.href, seed);
-    const text = "BBQ Party で" + lastScore + "点！同じチャレンジで勝負しよう";
+    const text = t("shareText", { score: lastScore });
     hideShareFallback();
     Core.shareChallenge({ nav: window.navigator, title: "BBQ Party", text, url }).then((outcome) => {
       if (outcome.method === "clipboard") {
-        setText("shareStatus", el.shareStatus, "リンクをコピーしました");
-        later(() => setText("shareStatus", el.shareStatus, ""), 4000);
+        shareStatusKey = "copied";
+        setText("shareStatus", el.shareStatus, t(shareStatusKey));
+        later(() => { shareStatusKey = ""; setText("shareStatus", el.shareStatus, ""); }, 4000);
       } else if (outcome.method === "fallback") {
         el.shareFallbackText.value = url;
         el.shareFallback.hidden = false;
@@ -1213,7 +1256,93 @@
     }
   }
 
+  function renderIngredientText() {
+    for (const item of Core.INGREDIENTS) {
+      ingEls[item.id].name.textContent = i18n.language() === "en" ? (item.id === "steak" ? "Steak" : item.id === "kalbi" ? "Kalbi" : item.nameEn) : item.short;
+      ingEls[item.id].meta.textContent = seconds(item.idealMs) + t("separator") + item.base + t("points");
+      ingEls[item.id].window.textContent = perfectTag(item) + " " + seconds(item.perfectMs);
+    }
+  }
+  function renderResultBest() {
+    if (!lastOutcome || !lastResults) return;
+    const outcome = lastOutcome;
+    setText("resultBest", el.resultBest, outcome.rank > 0
+      ? t("personalBest", { name: displayName(nickname), score: outcome.best, rank: outcome.rank })
+      : lastResults.score > 0 ? t("outsideLocal", { count: Core.MAX_PLAYERS }) : t("zeroLocal"));
+  }
+  // Online scores never replace or borrow this device's records.
+  function renderOnline() {
+    for (const board of ["onlineStart", "onlineResult"]) {
+      $(board + "Status").textContent = t("online" + onlineBoard.status);
+      for (let i = 0; i < 3; i++) {
+        const row = onlineBoard.rows[i];
+        $(board + "Name-" + i).textContent = row ? row.name : "—";
+        $(board + "Score-" + i).textContent = row ? String(row.score) : "";
+      }
+    }
+    $("publishDisclosure").textContent = t("publishDisclosure", { name: publishName || displayName(nickname), score: lastResults ? lastResults.score : 0 });
+    const state = !online.enabled ? "disabled" : publishState === "ready" && !online.canSubmit() ? "unavailable" : publishState;
+    $("publishStatus").textContent = t("publish" + state);
+    $("publishButton").textContent = t(["retry", "rate"].includes(publishState) ? "publishRetry" : "publishButton");
+    $("publishButton").disabled = !online.canSubmit() || online.isBusy() || !$("publishConsent").checked;
+    $("publishConsent").disabled = online.isBusy() || publishState === "accepted";
+  }
+  async function refreshOnline() {
+    const ticket = ++boardTicket;
+    onlineBoard = { status: online.enabled ? "loading" : "disabled", rows: [] };
+    renderOnline();
+    const board = await online.top();
+    if (ticket !== boardTicket) return;
+    onlineBoard = board;
+    renderOnline();
+  }
+  async function publishScore() {
+    if (!$("publishConsent").checked || !online.canSubmit() || online.isBusy()) return;
+    const ticket = roundTicket;
+    publishState = "busy";
+    const promise = online.submit(publishName, true);
+    renderOnline();
+    const result = await promise;
+    if (ticket !== roundTicket || result.state === "stale") return;
+    publishState = result.state;
+    renderOnline();
+    if (result.state === "accepted") void refreshOnline();
+  }
+
+  function changeLanguage() {
+    i18n.setLanguage(i18n.language() === "ja" ? "en" : "ja");
+    textCache = {};
+    slotCache = [];
+    popups.clear();
+    i18n.applyStatic(document);
+    renderIngredientText();
+    renderSound();
+    renderRanking();
+    renderChallengeInfo();
+    renderResultBest();
+    renderOnline();
+    const legacyBest = store.load().legacyBest;
+    setText("startLegacy", el.startLegacy, legacyBest > 0 ? t("legacyBest", { score: legacyBest }) : "");
+    setText("player", el.hudPlayer, displayName(nickname));
+    setText("resultNickname", el.resultNickname, displayName(nickname));
+    setText("resultSeed", el.resultSeed, challengeLabel());
+    setText("pauseReason", el.pauseReason, t(pauseReasonKey));
+    if (linkNoticeKey) el.linkNotice.textContent = t(linkNoticeKey);
+    if (!el.nicknameError.hidden) el.nicknameError.textContent = t("nicknameError", { max: Core.NICKNAME_MAX });
+    if (shareStatusKey) setText("shareStatus", el.shareStatus, t(shareStatusKey));
+    if (messageState) {
+      const values = Object.assign({}, messageState.values);
+      if (values.ingredient) values.name = ingredientName(values.ingredient);
+      el.statusLine.textContent = t(messageState.key, values);
+    }
+    updateTray(shownPopular);
+    // Repaint only: no clock, seed, recording or audio restart.
+    layout();
+    pump(now());
+  }
+
   function bind() {
+    for (const id of i18n.buttons) $(id).addEventListener("click", changeLanguage);
     el.startForm.addEventListener("submit", onStartSubmit);
     el.nicknameInput.addEventListener("input", clearNicknameError);
     slotEls.forEach((slot, index) => slot.addEventListener("click", () => onSlot(index)));
@@ -1252,6 +1381,10 @@
       el.nicknameInput.focus();
     });
     el.shareButton.addEventListener("click", onShare);
+    $("onlineStartRefresh").addEventListener("click", refreshOnline);
+    $("onlineResultRefresh").addEventListener("click", refreshOnline);
+    $("publishConsent").addEventListener("change", renderOnline);
+    $("publishButton").addEventListener("click", publishScore);
 
     // Fast taps, double clicks and drags must not select or drag game text.
     // Form fields (nickname, the share link to copy) keep normal selection.
@@ -1288,11 +1421,8 @@
   }
 
   function init() {
-    for (const item of Core.INGREDIENTS) {
-      ingEls[item.id].name.textContent = item.short;
-      ingEls[item.id].meta.textContent = seconds(item.idealMs) + "・" + item.base + "点";
-      ingEls[item.id].window.textContent = perfectTag(item) + " " + seconds(item.perfectMs);
-    }
+    i18n.applyStatic(document);
+    renderIngredientText();
 
     const record = store.load();
     audio.setSettings(record.audio);
@@ -1304,16 +1434,18 @@
     const link = Core.parseChallengeHash(window.location.hash);
     if (link.ok) {
       seed = link.seed;
-      el.linkNotice.textContent = "（リンクのチャレンジ）";
+      linkNoticeKey = "linkChallenge";
+      el.linkNotice.textContent = t(linkNoticeKey);
       el.linkNotice.hidden = false;
     } else {
       seed = newSeed();
       if (link.reason === "legacy") {
-        el.linkNotice.textContent =
-          "（旧バージョン v1 のリンクです。食材が6種類になり同じ内容を再現できないため、新しい v2 チャレンジにしました）";
+        linkNoticeKey = "linkLegacy";
+        el.linkNotice.textContent = t(linkNoticeKey);
         el.linkNotice.hidden = false;
       } else if (link.reason !== "empty") {
-        el.linkNotice.textContent = "（リンクが正しくないため、新しいチャレンジにしました）";
+        linkNoticeKey = "linkInvalid";
+        el.linkNotice.textContent = t(linkNoticeKey);
         el.linkNotice.hidden = false;
       }
     }
@@ -1321,6 +1453,8 @@
     bind();
     layout();
     showStart();
+    renderOnline();
+    void refreshOnline();
   }
 
   init();

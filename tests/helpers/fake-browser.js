@@ -402,6 +402,7 @@ function boot(options) {
   const elements = parseElements(env, html);
 
   const document = new FakeTarget();
+  document.documentElement = new FakeElement(env, "html", { lang: "ja" });
   document.hidden = false;
   document.visibilityState = "visible";
   document.activeElement = null;
@@ -414,9 +415,14 @@ function boot(options) {
   window.window = window;
   window.document = document;
   window.console = console;
+  window.URL = URL;
+  window.TextEncoder = TextEncoder;
+  window.TextDecoder = TextDecoder;
+  window.AbortController = AbortController;
+  window.fetch = opts.fetch || (() => { throw new Error("unexpected network request"); });
   window.devicePixelRatio = opts.devicePixelRatio || 2;
   window.performance = { now: () => env.clock };
-  window.navigator = opts.navigator || {};
+  window.navigator = Object.assign({ language: "ja" }, opts.navigator);
   window.location = {
     hash: opts.hash,
     href: "https://example.test/BBQ-Game/?utm=ignored" + opts.hash,
@@ -482,8 +488,9 @@ function boot(options) {
 
   env.window = window;
   const context = vm.createContext(window);
-  for (const file of ["core.js", "art.js", "app.js"]) {
+  for (const file of ["core.js", "art.js", "i18n.js", "ranking-config.js", "ranking.js", "app.js"]) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, file), "utf8"), context, { filename: file });
+    if (file === "ranking-config.js") window.BBQRankingConfig = opts.rankingConfig || { apiBase: "" };
   }
 
   env.$ = (id) => {

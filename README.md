@@ -2,9 +2,11 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-BBQ Party is a 60-second grilling game for the browser. Pick one of six ingredients, tap an empty spot on the six-slot grill, and tap again to collect it at the right moment. Chain good collections for a combo multiplier, follow the "popular" ingredient for a bonus, and try to beat the top three scores on your device. It is plain static HTML, CSS, JavaScript and Canvas: no framework, no build step, no backend, no external requests.
+BBQ Party is a 60-second grilling game for the browser. Pick one of six ingredients, tap an empty spot on the six-slot grill, and tap again to collect it at the right moment. Chain good collections for a combo multiplier, follow the "popular" ingredient for a bonus, and try to beat the top three scores on your device. The game is static HTML, CSS, JavaScript and Canvas with no framework or build step. A Supabase API provides optional shared scores.
 
-The in-game text is Japanese.
+The interface supports Japanese and English. The language button is available on every screen, remembers your choice when storage works and keeps the current round intact. Initial language follows the browser's supported preference (otherwise English).
+
+Shared top-three scores are separate from device bests. Publishing requires explicit consent to make the nickname and score public; no device records are automatically uploaded. Online service failure leaves local play available.
 
 [Play the published game](https://moruku36.github.io/BBQ-Game/) | [Version 2 verification and images](BROWSER-VERIFICATION-v2.md) — owner-reviewed and published.
 
@@ -99,7 +101,7 @@ Cooking result by time on the grill (`age`), with `P` taken from the table:
 - Nicknames, stored data and the link fragment are untrusted input: they are validated (length, whole-number ranges, entry limits) and only ever written with `textContent` or as a form value.
 - `<meta name="robots" content="noindex, nofollow">` asks search engines not to list the page. There is no `robots.txt` block, so crawlers can read that request.
 - **Limits.** `noindex` is a request, not access control. The site URL, the repository and the source are public, and anyone with the URL can open the game. GitHub Pages does not let this project set HTTP response headers, so HSTS, `X-Frame-Options` and header-only CSP directives such as `frame-ancestors` are not configured by this repository. There is no password, login or private mode.
-- The repository has no build workflow, no secrets and no dependencies.
+- The repository has a read-only test workflow, no deployment workflow or secrets, and no runtime dependencies. Browser tooling is installed only in the isolated CI runner.
 
 ## Technical structure
 
@@ -107,6 +109,7 @@ Cooking result by time on the grill (`age`), with `P` taken from the table:
 - `styles.css` – layout and styling (mobile and desktop)
 - `core.js` – everything with rules and no DOM: ingredient table, cook windows, scoring, the seeded popular schedule, challenge-link parsing and versions, nickname normalisation, the per-name record store and its migration, the BGM score and sequencer, share helper, the game state machine. It takes an injected clock, so it runs unchanged in Node.
 - `art.js` – Canvas drawing for the garden, the grill, the six foods and the timing bar
+- `i18n.js` – UI, help, results, sound and accessible labels in Japanese/English
 - `app.js` – DOM wiring, the single frame loop, Web Audio (one context, a sound-effect bus and a BGM bus), the sound panel, screens and lifecycle
 - `favicon.svg`, `favicon.ico`, `apple-touch-icon.png` – self-made icon; `tools/make-icons.js` regenerates the two fallback files
 - `tests/` – Node tests
@@ -120,6 +123,8 @@ Uses Node's built-in test runner (run here with Node.js 22). No dependencies to 
 npm test
 ```
 
+`tests/i18n.test.js` checks language selection, switches without state loss, optional storage, translated errors, sharing and text safety. `tools/browser-i18n.cjs` checks real Chromium in both languages at three viewports. It accelerates a round with clock offsets; it does not verify physical phones, Safari, audible output or the native share sheet. Previous v2 test/browser reports below describe the prior release, not this change.
+
 `tests/core.test.js` covers the rules with an injected clock. `tests/app.test.js` loads the real page scripts into a small fake browser (`tests/helpers/fake-browser.js`) and plays through them.
 
 Verified for version 2 by the Node tests (113 tests, all passing): the six-ingredient table, boundaries and balance; seeded schedules and pinned version 2 seeds; version 1 link handling; per-name bests, ties, the guest entry, limits, invalid scores, damaged storage and version 1 migration; nickname text safety; BGM start from a gesture, pause, hidden tab, end, retry and no overlapping loop; independent sound settings; text-selection handlers; the CSP and robots meta tags; and the CSS sizes behind the mobile layout.
@@ -127,3 +132,7 @@ Verified for version 2 by the Node tests (113 tests, all passing): the six-ingre
 Version 2 was also checked in a new isolated headless Chrome 153.0.8010.55: **106 browser checks passed** at 360×640, 390×844 and 1280×800, with no JavaScript exceptions or CSP violations. The checks exercised rendering, screen fit, controls, the local top three, sound settings and continuous BGM scheduling, pause/resume, selection behaviour, sharing fallbacks and favicon decoding. See [the version 2 report and review images](BROWSER-VERIFICATION-v2.md). Audible speaker output, physical phone touch, iOS Safari and the native share sheet remain unverified. This was a local preview; publishing awaits the owner’s final review.
 
 History: [BROWSER-VERIFICATION.md](BROWSER-VERIFICATION.md) and the screenshots in `assets/` record the real Chrome verification of **version 1** (four ingredients, 69 Node tests). They are kept as a record of that release and do not show or verify version 2.
+
+## Optional shared scores
+
+The bilingual UI connects to the Tokyo Supabase project through one public Edge Function. Browsers receive no database key and cannot access the four private tables or server-only RPC. The API validates action logs, recalculates scores and uses shared rate limits. See [ranking operations](RANKING-OPERATIONS.md) for limits, retention and rollback. CI uses a disposable database and disables production requests.
