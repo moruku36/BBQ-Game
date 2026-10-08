@@ -65,3 +65,6 @@ This appendix is a recommendation for review, not a user decision. No live DB op
 
 
 Implementation update: PR #3 now contains the proposed private SQL/API and consent UI with no live endpoint. See [RANKING-OPERATIONS.md](RANKING-OPERATIONS.md) for exact pending approvals, request-driven cleanup limitations and isolated CI scope. This code addition does not approve or apply the proposal.
+
+
+First-release simplification after project creation: the adapter now applies the per-hash budgets to one whole-game anonymous bucket, rather than unverified client-IP headers. This is stricter and requires no new HMAC secret or human secret entry. The earlier per-network hash design remains a future proposal. The owner-created target is cyhqsliolbcgxvlblvas, Tokyo; automatic approval review rejected the first live application, so no schema/function is deployed yet. See RANKING-OPERATIONS.md.

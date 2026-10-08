@@ -94,3 +94,17 @@ test("API fails closed without backend identity/configuration",async()=>{
  const api=Server.create({Core,repo:{call:()=>assert.fail()},origin:"https://example.test",rateKey:async()=>{throw Error("missing trusted header");},digest:()=>assert.fail()});
  assert.equal((await api(new Request("https://api.test/top?version=2&mode=standard"))).status,503);
 });
+
+test("shared rate limit explains retry without mutating the submission",async()=>{
+ const bodies=[];let limited=true;
+ const c=client(async(url,opts)=>{
+  if(url.endsWith("/runs"))return json(run);
+  bodies.push(opts.body);
+  if(limited){limited=false;return json({error:"rate"},429);}
+  return json({accepted:true,score,ranked:true});
+ });
+ await c.begin(123);actions.forEach(c.record);c.finish(score);
+ assert.equal((await c.submit("Ken",true)).state,"rate");
+ assert.equal((await c.submit("Changed",true)).state,"accepted");
+ assert.equal(bodies[0],bodies[1]);
+});

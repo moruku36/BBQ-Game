@@ -124,7 +124,7 @@
     "onlinedisabled": "公開ランキングは準備中です。端末の記録で遊べます。",
     "onlineerror": "公開ランキングに接続できません。端末の記録は別に保存されます。",
     "onlineempty": "公開スコアはまだありません。",
-    "onlineready": "全員の公開スコア・同じ名前も別のスコアです。本人確認はありません。",
+    "onlineready": "全員の公開スコア・同じ名前も別のスコアです。本人確認はありません。 初期公開は全員共通の回数制限です。",
     "publishDisclosure": "公開する名前「{name}」とスコア {score} 点を、だれでも見られるランキングへ送信します。名前は本人確認なしの表示名です。検証・再送用のログと控えは24時間以内に期限切れとなり、以後のサーバー処理で削除されます。上位から外れた名前・点数も控えに期限まで残ります。運用ログの保存条件は接続開始前にお知らせします。",
     "publishConsentLabel": "名前とスコアの公開に同意する",
     "publishButton": "このスコアを公開する",
@@ -139,7 +139,8 @@
     "publishconflict": "このプレイは別の内容で送信済みです。次のプレイでお試しください。",
     "publishinvalid": "操作記録を検証できませんでした。次のプレイでお試しください。",
     "publishconsent": "名前とスコアの公開への同意が必要です。",
-    "publishunavailableFallback": "接続できません。"
+    "publishunavailableFallback": "接続できません。",
+    "publishrate": "共有の送信回数上限に達しました。数分待って、同じスコアを再試行してください。端末の記録は保存済みです。"
   },
   "en": {
     "langName": "日本語",
@@ -257,7 +258,7 @@
     "onlinedisabled": "Public scores are coming soon. Device records are available.",
     "onlineerror": "Public scores are unavailable. Device records are saved separately.",
     "onlineempty": "No public scores yet.",
-    "onlineready": "Public scores from everyone. Names can repeat and are not verified identities.",
+    "onlineready": "Public scores from everyone. Names can repeat and are not verified identities. This first release uses a shared request budget.",
     "publishDisclosure": "Publish the name “{name}” and score {score} to a leaderboard anyone can see. Names are unverified display labels. Verification logs and submission receipts expire within 24 hours, then are deleted by subsequent server requests. Names and scores displaced from the top three may remain in private receipts until expiry. Provider log terms will be disclosed before public submissions are enabled.",
     "publishConsentLabel": "I agree to publish my name and score",
     "publishButton": "Publish this score",
@@ -272,7 +273,8 @@
     "publishconflict": "This round was submitted with different details. Try a new round.",
     "publishinvalid": "The gameplay log could not be verified. Try a new round.",
     "publishconsent": "Consent to publish your name and score is required.",
-    "publishunavailableFallback": "Unable to connect."
+    "publishunavailableFallback": "Unable to connect.",
+    "publishrate": "The shared submission limit was reached. Wait a few minutes and retry the same score. Your device record is already saved."
   }
 };
   const STATIC_TARGETS = [["soundText","textContent","soundBoth"],["i18n-2","textContent","pauseShort"],["i18n-3","textContent","remaining"],["i18n-4","textContent","seconds"],["i18n-5","textContent","score"],["i18n-6","textContent","combo"],["i18n-7","textContent","localHud"],["i18n-8","textContent","localHudTail"],["i18n-9","textContent","popular"],["i18n-10","textContent","next"],["ingPop-shrimp","textContent","popularBonus"],["ingPop-sausage","textContent","popularBonus"],["ingPop-shiitake","textContent","popularBonus"],["ingPop-kalbi","textContent","popularBonus"],["ingPop-corn","textContent","popularBonus"],["ingPop-steak","textContent","popularBonus"],["i18n-17","textContent","eyebrow"],["i18n-18","textContent","how1"],["i18n-19","textContent","how1Tail"],["i18n-20","textContent","how2"],["i18n-21","textContent","how2Tail"],["i18n-22","textContent","how3"],["i18n-23","textContent","how3b"],["i18n-24","textContent","how3Tail"],["i18n-25","textContent","raw"],["i18n-26","textContent","zeroCombo"],["i18n-27","textContent","burnt"],["i18n-28","textContent","zeroCombo"],["i18n-29","textContent","ruleNote"],["i18n-30","textContent","nicknameLabel"],["startSoundButton","textContent","soundSettingsButton"],["startButton","textContent","start"],["startRankTitle","textContent","localTop"],["i18n-34","textContent","localNote"],["pauseTitle","textContent","paused"],["pauseReason","textContent","pauseReason"],["resumeButton","textContent","resume"],["pauseSoundButton","textContent","soundSettingsButton"],["i18n-39","textContent","timeUp"],["resultTitle","textContent","results"],["i18n-41","textContent","playerScore"],["i18n-42","textContent","points"],["resultNewBest","textContent","newBest"],["i18n-44","textContent","burnt"],["i18n-45","textContent","maxCombo"],["resultSaveNote","textContent","saveFailed"],["resultRankTitle","textContent","localTop"],["retryButton","textContent","retry"],["shareButton","textContent","share"],["newChallengeButton","textContent","newChallenge"],["titleButton","textContent","changeName"],["i18n-52","textContent","copyHelp"],["i18n-53","textContent","resultNote"],["soundTitle","textContent","soundSettings"],["seLabel","textContent","se"],["seToggle","textContent","on"],["bgmLabel","textContent","bgm"],["bgmToggle","textContent","on"],["i18n-59","textContent","soundNote"],["soundCloseButton","textContent","close"],["soundButton","aria-label","soundSettings"],["pauseButton","aria-label","pause"],["i18n-61","aria-label","hudAria"],["i18n-62","aria-label","popularAria"],["grill","aria-label","grillAria"],["tray","aria-label","how1"],["i18n-63","aria-label","legendAria"],["nicknameInput","placeholder","guest"],["seToggle","aria-label","se"],["seDown","aria-label","seDown"],["seUp","aria-label","seUp"],["bgmToggle","aria-label","bgm"],["bgmDown","aria-label","bgmDown"],["bgmUp","aria-label","bgmUp"],["timeCard","data-urgent-label","hurry"],["ing-shrimp","data-selected-label","selected"],["ing-sausage","data-selected-label","selected"],["ing-shiitake","data-selected-label","selected"],["ing-kalbi","data-selected-label","selected"],["ing-corn","data-selected-label","selected"],["ing-steak","data-selected-label","selected"],["onlineStartTitle","textContent","onlineTitle"],["onlineStartRefresh","textContent","onlineRefresh"],["onlineResultTitle","textContent","onlineTitle"],["onlineResultRefresh","textContent","onlineRefresh"],["publishConsentLabel","textContent","publishConsentLabel"]];

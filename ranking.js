@@ -101,7 +101,7 @@
         if(!current||current.ticket!==ticket)return {state:"stale"};
         const terminal=["expired","conflict","invalid"].includes(error.code);
         if(terminal)current.eligible=false;
-        return {state:terminal?error.code:"retry"};
+        return {state:terminal?error.code:error.code==="rate"?"rate":"retry"};
       }finally{if(current&&current.ticket===ticket)busy=false;}
     }
     return {enabled,top,begin,record,finish,cancel,canSubmit,submit,isBusy:()=>busy};

@@ -1282,7 +1282,7 @@
     $("publishDisclosure").textContent = t("publishDisclosure", { name: publishName || displayName(nickname), score: lastResults ? lastResults.score : 0 });
     const state = !online.enabled ? "disabled" : publishState === "ready" && !online.canSubmit() ? "unavailable" : publishState;
     $("publishStatus").textContent = t("publish" + state);
-    $("publishButton").textContent = t(publishState === "retry" ? "publishRetry" : "publishButton");
+    $("publishButton").textContent = t(["retry", "rate"].includes(publishState) ? "publishRetry" : "publishButton");
     $("publishButton").disabled = !online.canSubmit() || online.isBusy() || !$("publishConsent").checked;
     $("publishConsent").disabled = online.isBusy() || publishState === "accepted";
   }
