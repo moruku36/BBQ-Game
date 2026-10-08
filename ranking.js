@@ -42,7 +42,7 @@
             for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
             let data;try{data=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}
             catch(_){throw Object.assign(new Error(),{code:"invalid-response"});}
-            if(!response.ok)throw Object.assign(new Error(),{code:["rate","early","expired","conflict","invalid"].includes(data.error)?data.error:"network"});
+            if(!response.ok)throw Object.assign(new Error(),{code:data.error==="too-large"?"invalid":["rate","early","expired","conflict","invalid"].includes(data.error)?data.error:"network"});
             return data;
           })(),
           new Promise((_,reject)=>{timer=timeout(()=>{if(controller)controller.abort();reject(Object.assign(new Error(),{code:"network"}));},8000);}),
@@ -91,6 +91,7 @@
       if(!pending)pending=JSON.stringify({runId:current.runId,name,actions:current.actions});
       busy=true;
       try{
+        if(new TextEncoder().encode(pending).length>32768)throw Object.assign(new Error(),{code:"invalid"});
         const result=await request("scores",JSON.parse(pending));
         if(!result||result.accepted!==true||result.score!==current?.score||typeof result.ranked!=="boolean")throw Object.assign(new Error(),{code:"invalid-response"});
         if(!current||current.ticket!==ticket)return {state:"stale"};

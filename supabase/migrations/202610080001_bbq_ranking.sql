@@ -85,6 +85,8 @@ begin
       insert into bbq_private.rates(bucket,count,expires_at) values(keys[i],1,ts+interval '1 hour')
       on conflict(bucket) do update set count=least(bbq_private.rates.count+1,1000000)
       returning count into n;
+      -- Global exhaustion rejects before allocating a new per-hash bucket.
+      if i=1 and n>caps[i] then return jsonb_build_object('ok',false,'retryAfter',60); end if;
       if n>caps[i] then allowed:=false; end if;
     end loop;
     return jsonb_build_object('ok',allowed,'retryAfter',600);
