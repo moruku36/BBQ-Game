@@ -6,7 +6,7 @@ BBQ Party is a 60-second grilling game for the browser. Pick one of six ingredie
 
 The in-game text is Japanese.
 
-[Version 2 review images](BROWSER-VERIFICATION-v2.md) — local preview verified; owner review pending.
+[Play the published game](https://moruku36.github.io/BBQ-Game/) | [Version 2 verification and images](BROWSER-VERIFICATION-v2.md) — owner-reviewed and published.
 
 ## Play
 
