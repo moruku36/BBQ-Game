@@ -35,8 +35,8 @@
     fx: $("fx"),
     gameArea: $("gameArea"),
     hudPlayer: $("hudPlayer"),
-    muteButton: $("muteButton"),
-    muteText: $("muteText"),
+    soundButton: $("soundButton"),
+    soundText: $("soundText"),
     pauseButton: $("pauseButton"),
     timeCard: $("timeCard"),
     hudTime: $("hudTime"),
@@ -58,12 +58,16 @@
     nicknameInput: $("nicknameInput"),
     nicknameError: $("nicknameError"),
     startButton: $("startButton"),
+    startSoundButton: $("startSoundButton"),
     challengeInfo: $("challengeInfo"),
     linkNotice: $("linkNotice"),
-    startBest: $("startBest"),
+    startLegacy: $("startLegacy"),
     pauseOverlay: $("pauseOverlay"),
     pauseReason: $("pauseReason"),
     resumeButton: $("resumeButton"),
+    pauseSoundButton: $("pauseSoundButton"),
+    soundOverlay: $("soundOverlay"),
+    soundCloseButton: $("soundCloseButton"),
     screenResult: $("screenResult"),
     resultNickname: $("resultNickname"),
     resultScore: $("resultScore"),
@@ -72,6 +76,7 @@
     resultBurned: $("resultBurned"),
     resultMaxCombo: $("resultMaxCombo"),
     resultBest: $("resultBest"),
+    resultSaveNote: $("resultSaveNote"),
     resultSeed: $("resultSeed"),
     retryButton: $("retryButton"),
     shareButton: $("shareButton"),
@@ -96,7 +101,29 @@
       icon: $("ingIcon-" + item.id),
       name: $("ingName-" + item.id),
       meta: $("ingMeta-" + item.id),
+      window: $("ingWindow-" + item.id),
       pop: $("ingPop-" + item.id),
+    };
+  }
+  // The same top three is shown in the HUD, on the start card and on the result card.
+  const rankEls = {};
+  for (const board of ["hudRank", "startRank", "resultRank"]) {
+    rankEls[board] = [];
+    for (let i = 0; i < Core.RANK_SHOWN; i += 1) {
+      rankEls[board].push({
+        row: $(board + "-" + i),
+        name: $(board + "Name-" + i),
+        score: $(board + "Score-" + i),
+      });
+    }
+  }
+  const soundEls = {};
+  for (const channel of ["se", "bgm"]) {
+    soundEls[channel] = {
+      toggle: $(channel + "Toggle"),
+      down: $(channel + "Down"),
+      up: $(channel + "Up"),
+      level: $(channel + "Level"),
     };
   }
 
@@ -138,6 +165,25 @@
     return Core.ingredientById(id).name;
   }
 
+  function seconds(ms) {
+    return (ms / 1000).toFixed(1) + "秒";
+  }
+
+  // The PERFECT width in words, next to the number: wider or narrower than usual.
+  function perfectTag(item) {
+    return item.perfectMs > Core.PERFECT_WINDOW_MS ? "★広め" : item.perfectMs < Core.PERFECT_WINDOW_MS ? "★狭め" : "★幅";
+  }
+
+  function ingredientLabel(item) {
+    return (
+      item.name + "。" + seconds(item.idealMs) + "・" + item.base + "点・PERFECTの幅" + seconds(item.perfectMs) + (item.level ? "・" + item.level : "")
+    );
+  }
+
+  function challengeLabel() {
+    return "チャレンジ v" + Core.CHALLENGE_VERSION + " No. " + seed;
+  }
+
   // textContent only, and only when the value changed.
   function setText(key, node, value) {
     const text = String(value);
@@ -163,9 +209,16 @@
 
   // ---- sound ------------------------------------------------------------
 
+  // One AudioContext with two buses: sound effects and the BGM loop. Each has
+  // its own mute and volume. The BGM has no timer of its own: pump() polls
+  // tickBgm() from the single frame loop, so it can only ever run once.
   const audio = (function () {
     let ctx = null;
-    let muted = false;
+    let seBus = null;
+    let bgmBus = null;
+    let settings = Object.assign({}, Core.DEFAULT_AUDIO);
+    let voices = [];
+    const seq = Core.createBgmSequencer();
 
     function settle(promise) {
       if (promise && typeof promise.catch === "function") {
@@ -173,9 +226,26 @@
       }
     }
 
+    function busLevel(channel) {
+      const volume = settings[channel + "Volume"] / Core.VOLUME_MAX;
+      return settings[channel + "Muted"] ? 0 : volume * volume;
+    }
+
+    function silent() {
+      return settings.seMuted && settings.bgmMuted;
+    }
+
+    function drop() {
+      seq.stop();
+      voices = [];
+      ctx = null;
+      seBus = null;
+      bgmBus = null;
+    }
+
     // Only called from click/submit/keydown handlers, never at load.
     function unlock() {
-      if (muted) {
+      if (silent()) {
         return;
       }
       const Ctor = window.AudioContext || window.webkitAudioContext;
@@ -185,17 +255,22 @@
       try {
         if (!ctx) {
           ctx = new Ctor();
+          seBus = ctx.createGain();
+          bgmBus = ctx.createGain();
+          seBus.gain.value = busLevel("se");
+          bgmBus.gain.value = busLevel("bgm");
+          seBus.connect(ctx.destination);
+          bgmBus.connect(ctx.destination);
         }
         if (ctx.state === "suspended") {
           settle(ctx.resume());
         }
       } catch (error) {
-        ctx = null;
+        close();
       }
     }
 
-    function tone(freq, delay, duration, type, volume, slideTo) {
-      const start = ctx.currentTime + delay;
+    function voice(bus, freq, start, duration, type, volume, slideTo) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = type;
@@ -207,13 +282,18 @@
       gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(bus);
       osc.onended = () => {
         osc.disconnect();
         gain.disconnect();
       };
       osc.start(start);
       osc.stop(start + duration + 0.02);
+      return { osc, endAt: start + duration + 0.02 };
+    }
+
+    function tone(freq, delay, duration, type, volume, slideTo) {
+      voice(seBus, freq, ctx.currentTime + delay, duration, type, volume, slideTo);
     }
 
     const sounds = {
@@ -235,11 +315,92 @@
     };
 
     function play(name) {
-      if (muted || !ctx || ctx.state === "closed") {
+      if (settings.seMuted || !ctx || ctx.state === "closed") {
         return;
       }
       try {
         sounds[name]();
+      } catch (error) {
+        // sound is optional
+      }
+    }
+
+    function bgmNote(hz, melody, at) {
+      voices.push(voice(bgmBus, hz, at, melody ? 0.2 : 0.24, melody ? "square" : "triangle", melody ? 0.05 : 0.11));
+    }
+
+    // Silences every BGM note that is sounding or already scheduled. The bus
+    // dips for a moment so nothing clicks; new notes start after the dip.
+    function cutVoices() {
+      const cut = voices;
+      voices = [];
+      if (!ctx || ctx.state === "closed" || cut.length === 0) {
+        return;
+      }
+      try {
+        const at = ctx.currentTime;
+        bgmBus.gain.cancelScheduledValues(at);
+        bgmBus.gain.setTargetAtTime(0, at, 0.01);
+        bgmBus.gain.setTargetAtTime(busLevel("bgm"), at + 0.07, 0.01);
+        for (const item of cut) {
+          item.osc.stop(at + 0.06);
+        }
+      } catch (error) {
+        // sound is optional
+      }
+    }
+
+    // Hands the notes that are due to the audio clock. Called every frame.
+    function tickBgm() {
+      if (!seq.playing || !ctx || ctx.state !== "running") {
+        return;
+      }
+      try {
+        const at = ctx.currentTime;
+        voices = voices.filter((item) => item.endAt > at);
+        for (const note of seq.due(at)) {
+          bgmNote(note.hz, note.voice === "melody", note.atSec);
+        }
+      } catch (error) {
+        // sound is optional
+      }
+    }
+
+    // fromTop: a new round starts the tune again; a resume carries on.
+    function startBgm(fromTop) {
+      if (fromTop) {
+        seq.stop();
+        seq.reset();
+      }
+      if (settings.bgmMuted || !ctx || ctx.state === "closed" || seq.playing) {
+        return;
+      }
+      cutVoices();
+      seq.start(ctx.currentTime);
+      tickBgm();
+    }
+
+    function stopBgm() {
+      seq.stop();
+      cutVoices();
+    }
+
+    // One bar, once, so the BGM volume can be judged while nothing is playing.
+    function previewBgm() {
+      if (settings.bgmMuted || !ctx || ctx.state === "closed" || seq.playing) {
+        return;
+      }
+      cutVoices();
+      try {
+        for (let step = 0; step < 8; step += 1) {
+          const at = ctx.currentTime + 0.1 + step * Core.BGM.stepSec;
+          for (const name of ["melody", "bass"]) {
+            const midi = Core.BGM[name][step];
+            if (midi) {
+              bgmNote(Core.midiToHz(midi), name === "melody", at);
+            }
+          }
+        }
       } catch (error) {
         // sound is optional
       }
@@ -252,38 +413,77 @@
     }
 
     function resume() {
-      if (!muted && ctx && ctx.state === "suspended") {
+      if (!silent() && ctx && ctx.state === "suspended") {
         settle(ctx.resume());
       }
     }
 
     function close() {
-      if (ctx) {
+      const closing = ctx;
+      drop();
+      if (closing) {
         try {
-          settle(ctx.close());
+          settle(closing.close());
         } catch (error) {
           // already closed
         }
-        ctx = null;
       }
     }
 
-    function setMuted(value) {
-      muted = value;
-      if (muted) {
+    function setSettings(next) {
+      settings = Object.assign({}, next);
+      if (settings.bgmMuted) {
+        stopBgm();
+      }
+      if (ctx && ctx.state !== "closed") {
+        try {
+          const at = ctx.currentTime;
+          seBus.gain.cancelScheduledValues(at);
+          seBus.gain.setTargetAtTime(busLevel("se"), at, 0.02);
+          bgmBus.gain.cancelScheduledValues(at);
+          bgmBus.gain.setTargetAtTime(busLevel("bgm"), at, 0.02);
+        } catch (error) {
+          // sound is optional
+        }
+      }
+      if (silent()) {
         suspend();
       }
     }
 
-    return { unlock, play, suspend, resume, close, setMuted, isMuted: () => muted };
+    return {
+      unlock,
+      play,
+      startBgm,
+      stopBgm,
+      tickBgm,
+      previewBgm,
+      suspend,
+      resume,
+      close,
+      setSettings,
+      settings: () => Object.assign({}, settings),
+    };
   })();
 
-  function renderMute() {
-    const muted = audio.isMuted();
-    el.muteButton.setAttribute("aria-pressed", muted ? "true" : "false");
-    el.muteButton.setAttribute("aria-label", muted ? "サウンド: オフ（押すとオン）" : "サウンド: オン（押すとミュート）");
-    el.muteButton.classList.toggle("is-muted", muted);
-    setText("mute", el.muteText, muted ? "音なし" : "音あり");
+  function renderSound() {
+    const settings = audio.settings();
+    for (const channel of ["se", "bgm"]) {
+      const parts = soundEls[channel];
+      const muted = settings[channel + "Muted"];
+      const volume = settings[channel + "Volume"];
+      parts.toggle.setAttribute("aria-pressed", muted ? "false" : "true");
+      parts.toggle.classList.toggle("is-off", muted);
+      setText(channel + "Toggle", parts.toggle, muted ? "✕ オフ" : "♪ オン");
+      setText(channel + "Level", parts.level, volume + "/" + Core.VOLUME_MAX);
+      parts.down.disabled = volume <= 1;
+      parts.up.disabled = volume >= Core.VOLUME_MAX;
+    }
+    const state =
+      settings.seMuted && settings.bgmMuted ? "音なし" : settings.seMuted ? "BGMのみ" : settings.bgmMuted ? "効果音のみ" : "音あり";
+    el.soundButton.setAttribute("aria-label", "音の設定（いま: " + state + "）");
+    el.soundButton.classList.toggle("is-muted", settings.seMuted && settings.bgmMuted);
+    setText("sound", el.soundText, state);
   }
 
   // ---- layout and static art ------------------------------------------------
@@ -530,7 +730,7 @@
       const item = Core.ingredientById(food.id);
       Art.drawFood(ctx, food.id, c.x, c.y, c.size, { doneness: food.ageMs / item.idealMs, burnt: food.burnt });
       const barW = Math.max(24, rect.w - 20);
-      Art.drawTimingBar(ctx, rect.x + (rect.w - barW) / 2, rect.y + rect.h - 17, barW, 8, Core.cookWindows(item.idealMs), food.ageMs);
+      Art.drawTimingBar(ctx, rect.x + (rect.w - barW) / 2, rect.y + rect.h - 17, barW, 8, Core.windowsFor(food.id), food.ageMs);
     });
   }
 
@@ -565,10 +765,27 @@
     for (const item of Core.INGREDIENTS) {
       const parts = ingEls[item.id];
       const isSelected = item.id === selected;
+      const isPopular = item.id === popularId;
       parts.button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      parts.button.setAttribute("aria-label", ingredientLabel(item) + (isPopular ? "。いま人気 +" + Core.POPULAR_BONUS : ""));
       parts.button.classList.toggle("is-selected", isSelected);
-      parts.button.classList.toggle("is-popular", item.id === popularId);
-      parts.pop.hidden = item.id !== popularId;
+      parts.button.classList.toggle("is-popular", isPopular);
+      parts.pop.hidden = !isPopular;
+    }
+  }
+
+  // "同じ名前は1人" is decided in core; this only paints the stored top three.
+  function renderRanking() {
+    const top = store.top(Core.RANK_SHOWN);
+    for (const board of Object.keys(rankEls)) {
+      rankEls[board].forEach((parts, i) => {
+        const player = top[i];
+        const shared = player && player.guest && board !== "hudRank" ? "（名前なし共通）" : "";
+        setText(board + "Name" + i, parts.name, player ? player.name + shared : "—");
+        setText(board + "Score" + i, parts.score, player ? player.best + "点" : "");
+        parts.row.classList.toggle("is-empty", !player);
+        parts.row.classList.toggle("is-me", Boolean(player) && board !== "startRank" && player.name === nickname);
+      });
     }
   }
 
@@ -663,6 +880,9 @@
     stepEffects(dtMs);
     drawScene(snap, ts);
     drawEffects();
+    if (snap && snap.status === "running") {
+      audio.tickBgm();
+    }
     if (ended) {
       finishGame();
     }
@@ -684,6 +904,52 @@
     el.pauseOverlay.hidden = name !== "pause";
     el.screenResult.hidden = name !== "result";
     setGameInert(name !== "game");
+    setSoundOpen(false);
+  }
+
+  // The sound panel sits on top of whichever card is showing.
+  function setSoundOpen(open) {
+    el.soundOverlay.hidden = !open;
+    el.screenStart.inert = open;
+    el.pauseOverlay.inert = open;
+    el.screenResult.inert = open;
+  }
+
+  // Opening it mid-game pauses first, so closing it lands on the pause card
+  // and play only continues from the resume button.
+  function openSound() {
+    if (game && game.status === "running") {
+      pauseGame("manual");
+    }
+    renderSound();
+    setSoundOpen(true);
+    el.soundCloseButton.focus();
+  }
+
+  function closeSound() {
+    if (el.soundOverlay.hidden) {
+      return;
+    }
+    setSoundOpen(false);
+    if (!el.pauseOverlay.hidden) {
+      el.pauseSoundButton.focus();
+    } else if (!el.screenStart.hidden) {
+      el.startSoundButton.focus();
+    }
+  }
+
+  // Saves first, then applies. Runs from a tap, so it may open the audio
+  // context and play a short sample of the channel that changed.
+  function changeSound(channel, patch) {
+    const next = store.saveAudio(Object.assign(audio.settings(), patch));
+    audio.setSettings(next);
+    renderSound();
+    audio.unlock();
+    if (channel === "se") {
+      audio.play("good");
+    } else {
+      audio.previewBgm();
+    }
   }
 
   function hideShareFallback() {
@@ -696,6 +962,7 @@
   function teardown() {
     stopLoop();
     clearTimers();
+    audio.stopBgm();
     particles.clear();
     popups.clear();
     if (game) {
@@ -712,7 +979,7 @@
   }
 
   function renderChallengeInfo() {
-    setText("challengeInfo", el.challengeInfo, "チャレンジ No. " + seed);
+    setText("challengeInfo", el.challengeInfo, challengeLabel());
   }
 
   function syncHash() {
@@ -733,8 +1000,15 @@
 
   function showStart() {
     teardown();
-    const record = store.load();
-    setText("startBest", el.startBest, "この端末のベスト: " + record.bestScore + "点");
+    // A v1 best has no name attached, so it is shown apart and never ranked.
+    const legacyBest = store.load().legacyBest;
+    setText(
+      "startLegacy",
+      el.startLegacy,
+      legacyBest > 0 ? "旧バージョン(v1・4食材)の最高: " + legacyBest + "点（名前の記録がないためランキング対象外）" : ""
+    );
+    el.startLegacy.hidden = legacyBest <= 0;
+    renderRanking();
     renderChallengeInfo();
     showScreen("start");
     pump(now());
@@ -746,12 +1020,14 @@
     game = Core.createGame({ seed, now });
     game.select(selected);
     setText("player", el.hudPlayer, nickname);
+    renderRanking();
     renderChallengeInfo();
     syncHash();
     showScreen("game");
     layout();
     game.start();
-    say("食材をえらんで、空いた網をタップ！");
+    audio.startBgm(true);
+    say("食材トレイからえらんで、空いた網をタップ！");
     pump(now());
     startLoop();
     slotEls[0].focus();
@@ -770,16 +1046,27 @@
 
     const results = game.results();
     lastScore = results.score;
-    const best = store.saveBest(results.score);
+    const outcome = store.recordScore(nickname, results.score);
     setText("resultNickname", el.resultNickname, nickname);
     setText("resultScore", el.resultScore, results.score);
     setText("resultPerfect", el.resultPerfect, results.perfectCount);
     setText("resultBurned", el.resultBurned, results.burnedCount);
     setText("resultMaxCombo", el.resultMaxCombo, results.maxCombo);
-    setText("resultBest", el.resultBest, "この端末のベスト: " + best.bestScore + "点");
-    setText("resultSeed", el.resultSeed, "チャレンジ No. " + seed);
-    el.resultNewBest.hidden = !best.isNewBest;
+    setText(
+      "resultBest",
+      el.resultBest,
+      outcome.rank > 0
+        ? nickname + " さんのベスト: " + outcome.best + "点（この端末で" + outcome.rank + "位）"
+        : results.score > 0
+          ? "この端末の上位" + Core.MAX_PLAYERS + "人に入らなかったため、記録されませんでした"
+          : "1点以上とると、この端末のランキングに記録されます"
+    );
+    setText("resultSeed", el.resultSeed, challengeLabel());
+    el.resultNewBest.hidden = !outcome.isNewBest;
+    el.resultSaveNote.hidden = !outcome.isNewBest || outcome.persisted;
+    renderRanking();
     say("タイムアップ！スコア " + results.score + "点");
+    audio.stopBgm();
     audio.play("end");
     showScreen("result");
     el.retryButton.focus();
@@ -795,6 +1082,7 @@
       return;
     }
     stopLoop();
+    audio.stopBgm();
     audio.suspend();
     setText(
       "pauseReason",
@@ -812,6 +1100,7 @@
     }
     audio.unlock();
     audio.resume();
+    audio.startBgm(false);
     showScreen("game");
     lastFrameTs = 0;
     pump(now());
@@ -909,10 +1198,14 @@
   }
 
   function onKeydown(event) {
+    if (event.key === "Escape" && !el.soundOverlay.hidden) {
+      closeSound();
+      return;
+    }
     if (!game || game.status !== "running" || event.ctrlKey || event.metaKey || event.altKey) {
       return;
     }
-    const index = ["1", "2", "3", "4"].indexOf(event.key);
+    const index = Core.INGREDIENT_IDS.map((id, i) => String(i + 1)).indexOf(event.key);
     if (index !== -1) {
       selectIngredient(Core.INGREDIENT_IDS[index]);
     } else if (event.key === "Escape" || event.key === "p" || event.key === "P") {
@@ -927,16 +1220,21 @@
     for (const item of Core.INGREDIENTS) {
       ingEls[item.id].button.addEventListener("click", () => selectIngredient(item.id));
     }
-    el.muteButton.addEventListener("click", () => {
-      const muted = !audio.isMuted();
-      audio.setMuted(muted);
-      store.saveMuted(muted);
-      if (!muted && game && game.status === "running") {
-        audio.unlock();
-        audio.resume();
-      }
-      renderMute();
-    });
+    for (const opener of [el.soundButton, el.startSoundButton, el.pauseSoundButton]) {
+      opener.addEventListener("click", openSound);
+    }
+    el.soundCloseButton.addEventListener("click", closeSound);
+    for (const channel of ["se", "bgm"]) {
+      const parts = soundEls[channel];
+      const volume = () => audio.settings()[channel + "Volume"];
+      parts.toggle.addEventListener("click", () => {
+        changeSound(channel, { [channel + "Muted"]: !audio.settings()[channel + "Muted"] });
+      });
+      parts.down.addEventListener("click", () => changeSound(channel, { [channel + "Volume"]: Math.max(1, volume() - 1) }));
+      parts.up.addEventListener("click", () => {
+        changeSound(channel, { [channel + "Volume"]: Math.min(Core.VOLUME_MAX, volume() + 1) });
+      });
+    }
     el.pauseButton.addEventListener("click", () => pauseGame("manual"));
     el.resumeButton.addEventListener("click", resumeGame);
     el.retryButton.addEventListener("click", () => {
@@ -955,10 +1253,23 @@
     });
     el.shareButton.addEventListener("click", onShare);
 
+    // Fast taps, double clicks and drags must not select or drag game text.
+    // Form fields (nickname, the share link to copy) keep normal selection.
+    const keepGameUnselected = (event) => {
+      const tag = event.target && event.target.tagName;
+      if (tag !== "INPUT" && tag !== "TEXTAREA") {
+        event.preventDefault();
+      }
+    };
+    el.app.addEventListener("selectstart", keepGameUnselected);
+    el.app.addEventListener("dragstart", keepGameUnselected);
+
     document.addEventListener("keydown", onKeydown);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden || document.visibilityState === "hidden") {
         pauseGame("hidden");
+        audio.stopBgm();
+        audio.suspend();
       }
     });
     window.addEventListener("pagehide", () => {
@@ -978,15 +1289,18 @@
 
   function init() {
     for (const item of Core.INGREDIENTS) {
-      ingEls[item.id].name.textContent = item.name;
-      ingEls[item.id].meta.textContent = (item.idealMs / 1000).toFixed(1) + "秒・" + item.base + "点";
+      ingEls[item.id].name.textContent = item.short;
+      ingEls[item.id].meta.textContent = seconds(item.idealMs) + "・" + item.base + "点";
+      ingEls[item.id].window.textContent = perfectTag(item) + " " + seconds(item.perfectMs);
     }
 
     const record = store.load();
-    audio.setMuted(record.muted);
-    renderMute();
+    audio.setSettings(record.audio);
+    renderSound();
     el.nicknameInput.value = record.nickname;
 
+    // A v1 link is never replayed: with six ingredients its seed would pick a
+    // different popular order, so the player is told and gets a new challenge.
     const link = Core.parseChallengeHash(window.location.hash);
     if (link.ok) {
       seed = link.seed;
@@ -994,7 +1308,11 @@
       el.linkNotice.hidden = false;
     } else {
       seed = newSeed();
-      if (link.reason !== "empty") {
+      if (link.reason === "legacy") {
+        el.linkNotice.textContent =
+          "（旧バージョン v1 のリンクです。食材が6種類になり同じ内容を再現できないため、新しい v2 チャレンジにしました）";
+        el.linkNotice.hidden = false;
+      } else if (link.reason !== "empty") {
         el.linkNotice.textContent = "（リンクが正しくないため、新しいチャレンジにしました）";
         el.linkNotice.hidden = false;
       }

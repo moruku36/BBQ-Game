@@ -191,7 +191,9 @@ class FakeElement extends FakeTarget {
     this.env.document.activeElement = this;
   }
 
-  select() {}
+  select() {
+    this.selectedText = this.value;
+  }
 
   click() {
     if (!this.disabled) {
@@ -234,37 +236,124 @@ function createStorage(initial) {
   };
 }
 
+// Audio nodes are strict too: the app swallows audio errors on purpose, so an
+// unknown member is also recorded in env.audioErrors for the tests to check.
+function strictAudio(env, kind, members) {
+  return new Proxy(members, {
+    get(target, key) {
+      if (typeof key === "symbol" || key in target) {
+        return target[key];
+      }
+      const error = new Error("Web Audio member not available: " + kind + "." + String(key));
+      env.audioErrors.push(error.message);
+      throw error;
+    },
+  });
+}
+
+function createAudioParam(env, initial) {
+  return strictAudio(env, "AudioParam", {
+    value: initial,
+    setValueAtTime(value) {
+      this.value = value;
+    },
+    exponentialRampToValueAtTime() {},
+    setTargetAtTime(value) {
+      this.value = value;
+    },
+    cancelScheduledValues() {},
+  });
+}
+
+// The context clock follows the test clock while "running" and stands still
+// while suspended, like the real one. Every oscillator is kept with its
+// start/stop times and the node chain it feeds, so tests can tell which bus
+// (sound effects or BGM) a note went to and whether notes overlap.
 class FakeAudioContext {
   constructor(env) {
     env.audioContexts.push(this);
+    this.env = env;
     this.state = "running";
-    this.currentTime = 0;
-    this.destination = {};
+    this.destination = { name: "destination" };
     this.nodes = 0;
+    this.oscillators = [];
+    this.gains = [];
+    this.banked = 0;
+    this.since = env.clock;
+  }
+
+  get currentTime() {
+    return this.state === "running" ? this.banked + (this.env.clock - this.since) / 1000 : this.banked;
   }
 
   createOscillator() {
     this.nodes += 1;
-    const param = { setValueAtTime() {}, exponentialRampToValueAtTime() {} };
-    return { type: "sine", frequency: param, connect() {}, disconnect() {}, start() {}, stop() {}, onended: null };
+    const frequency = createAudioParam(this.env, 440);
+    const osc = strictAudio(this.env, "OscillatorNode", {
+      type: "sine",
+      frequency,
+      out: null,
+      startAt: null,
+      stopAt: null,
+      onended: null,
+      connect(target) {
+        this.out = target;
+      },
+      disconnect() {},
+      start(at) {
+        this.startAt = at;
+      },
+      stop(at) {
+        this.stopAt = at;
+      },
+    });
+    this.oscillators.push(osc);
+    return osc;
   }
 
   createGain() {
-    const param = { setValueAtTime() {}, exponentialRampToValueAtTime() {} };
-    return { gain: param, connect() {}, disconnect() {} };
+    const node = strictAudio(this.env, "GainNode", {
+      gain: createAudioParam(this.env, 1),
+      out: null,
+      connect(target) {
+        this.out = target;
+      },
+      disconnect() {},
+    });
+    this.gains.push(node);
+    return node;
+  }
+
+  // Buses are the gain nodes wired straight to the destination, in creation
+  // order: sound effects first, then BGM.
+  buses() {
+    const wired = this.gains.filter((node) => node.out === this.destination);
+    return { se: wired[0], bgm: wired[1] };
+  }
+
+  notes(channel) {
+    const bus = this.buses()[channel];
+    return this.oscillators.filter((osc) => osc.out && osc.out.out === bus);
   }
 
   resume() {
-    this.state = "running";
+    if (this.state === "suspended") {
+      this.since = this.env.clock;
+      this.state = "running";
+    }
     return Promise.resolve();
   }
 
   suspend() {
-    this.state = "suspended";
+    if (this.state === "running") {
+      this.banked = this.currentTime;
+      this.state = "suspended";
+    }
     return Promise.resolve();
   }
 
   close() {
+    this.banked = this.currentTime;
     this.state = "closed";
     return Promise.resolve();
   }
@@ -278,6 +367,7 @@ function boot(options) {
     clock: 0,
     stats: { drawCalls: 0 },
     audioContexts: [],
+    audioErrors: [],
     rafCallbacks: new Map(),
     timeouts: new Map(),
     nextId: 1,

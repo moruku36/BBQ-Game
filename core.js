@@ -16,6 +16,7 @@
   const PHASE_COUNT = 6;
   const PREVIEW_MS = 3000;
   const SLOT_COUNT = 6;
+  // Default PERFECT width. Each ingredient carries its own perfectMs.
   const PERFECT_WINDOW_MS = 800;
   const POPULAR_BONUS = 50;
   const MAX_MULTIPLIER_TENTHS = 20;
@@ -23,12 +24,22 @@
   // so a double tap can neither collect twice nor instantly pull raw food.
   const TAP_GUARD_MS = 200;
 
-  const CHALLENGE_VERSION = 1;
+  // Version 2 = six ingredients. The same seed number picks a different
+  // popular order than it did in version 1, so v1 links are never replayed
+  // as if they were v2 (see parseChallengeHash).
+  const CHALLENGE_VERSION = 2;
+  const LEGACY_CHALLENGE_VERSION = 1;
   const MAX_SEED = 0xffffffff;
   const NICKNAME_MAX = 12;
   const DEFAULT_NICKNAME = "ゲスト";
-  const STORAGE_KEY = "bbqParty.v1";
-  const MAX_STORED_SCORE = 9999999;
+  const STORAGE_KEY = "bbqParty.v2";
+  const LEGACY_STORAGE_KEY = "bbqParty.v1";
+  // Far above anything reachable: 6 slots x 20 collections x (210 x 2 + 50).
+  const MAX_SCORE = 99999;
+  const MAX_PLAYERS = 20;
+  const RANK_SHOWN = 3;
+  const VOLUME_MAX = 5;
+  const DEFAULT_AUDIO = Object.freeze({ seMuted: false, seVolume: 5, bgmMuted: false, bgmVolume: 3 });
 
   const GRADE = Object.freeze({ RAW: "RAW", GOOD: "GOOD", PERFECT: "PERFECT", BURNT: "BURNT" });
   const STAGE = Object.freeze({
@@ -41,10 +52,14 @@
 
   const INGREDIENTS = Object.freeze(
     [
-      { id: "shrimp", name: "エビ", nameEn: "Shrimp", idealMs: 3000, base: 80 },
-      { id: "sausage", name: "ソーセージ", nameEn: "Sausage", idealMs: 3800, base: 100 },
-      { id: "kalbi", name: "カルビ", nameEn: "Kalbi beef", idealMs: 4700, base: 125 },
-      { id: "corn", name: "コーン", nameEn: "Corn", idealMs: 6000, base: 160 },
+      { id: "shrimp", name: "エビ", short: "エビ", nameEn: "Shrimp", idealMs: 3000, base: 80, perfectMs: 800, level: "" },
+      { id: "sausage", name: "ソーセージ", short: "ソーセージ", nameEn: "Sausage", idealMs: 3800, base: 100, perfectMs: 800, level: "" },
+      // Beginner pick: a wide PERFECT window, paid for with the lowest points per second.
+      { id: "shiitake", name: "しいたけ", short: "しいたけ", nameEn: "Shiitake", idealMs: 4200, base: 100, perfectMs: 1400, level: "やさしい" },
+      { id: "kalbi", name: "カルビ", short: "カルビ", nameEn: "Kalbi beef", idealMs: 4700, base: 125, perfectMs: 800, level: "" },
+      { id: "corn", name: "コーン", short: "コーン", nameEn: "Corn", idealMs: 6000, base: 160, perfectMs: 800, level: "" },
+      // Expert pick: the best points per second, but only inside a narrow PERFECT window.
+      { id: "steak", name: "厚切りステーキ", short: "ステーキ", nameEn: "Thick-cut steak", idealMs: 7000, base: 210, perfectMs: 500, level: "上級" },
     ].map(Object.freeze)
   );
   const INGREDIENT_IDS = Object.freeze(INGREDIENTS.map((item) => item.id));
@@ -60,27 +75,32 @@
 
   // ---- cooking ---------------------------------------------------------
 
-  // Thresholds for an ideal cook time T, all in milliseconds:
+  // Thresholds for an ideal cook time T and a PERFECT width P, in milliseconds:
   //   goodStartMs = 0.8T, perfectStartMs = T,
-  //   perfectEndMs = min(T + 0.8s, 1.5T), burnMs = 1.5T
-  function cookWindows(idealMs) {
+  //   perfectEndMs = min(T + P, 1.5T), burnMs = 1.5T
+  function cookWindows(idealMs, perfectMs) {
     const burnMs = (idealMs * 3) / 2;
     return {
       goodStartMs: (idealMs * 4) / 5,
       perfectStartMs: idealMs,
-      perfectEndMs: Math.min(idealMs + PERFECT_WINDOW_MS, burnMs),
+      perfectEndMs: Math.min(idealMs + (perfectMs === undefined ? PERFECT_WINDOW_MS : perfectMs), burnMs),
       burnMs,
     };
+  }
+
+  function windowsFor(ingredientId) {
+    const item = ingredientById(ingredientId);
+    return cookWindows(item.idealMs, item.perfectMs);
   }
 
   // Boundary rules (age = active time on the grill):
   //   age <  0.8T              RAW
   //   0.8T <= age <  T         GOOD     (0.8T inclusive, T exclusive)
-  //   T    <= age <= T + 0.8s  PERFECT  (both ends inclusive)
-  //   T + 0.8s < age <= 1.5T   GOOD     (1.5T inclusive)
+  //   T    <= age <= T + P     PERFECT  (both ends inclusive)
+  //   T + P < age <= 1.5T      GOOD     (1.5T inclusive)
   //   age >  1.5T              BURNT
-  function stageForAge(idealMs, ageMs) {
-    const w = cookWindows(idealMs);
+  function stageForAge(idealMs, ageMs, perfectMs) {
+    const w = cookWindows(idealMs, perfectMs);
     if (!(ageMs >= w.goodStartMs)) {
       return STAGE.RAW;
     }
@@ -107,7 +127,8 @@
   }
 
   function cookStage(ingredientId, ageMs) {
-    return stageForAge(ingredientById(ingredientId).idealMs, ageMs);
+    const item = ingredientById(ingredientId);
+    return stageForAge(item.idealMs, ageMs, item.perfectMs);
   }
 
   function judge(ingredientId, ageMs) {
@@ -202,6 +223,8 @@
 
   // The fragment is exactly "#v=<version>&seed=<seed>": canonical decimal,
   // no extra keys, so a nickname can never ride along.
+  // A well-formed v1 link is reported as "legacy" without its seed: under the
+  // six-ingredient rules that number would mean a different challenge.
   const HASH_PATTERN = /^#v=(0|[1-9][0-9]{0,2})&seed=(0|[1-9][0-9]{0,9})$/;
 
   function parseChallengeHash(hash) {
@@ -214,6 +237,9 @@
     }
     const version = Number(match[1]);
     const seed = Number(match[2]);
+    if (version === LEGACY_CHALLENGE_VERSION) {
+      return { ok: false, reason: "legacy", version };
+    }
     if (version !== CHALLENGE_VERSION) {
       return { ok: false, reason: "version" };
     }
@@ -240,11 +266,13 @@
   const INVISIBLE_CHARS = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g;
 
   // Nicknames are plain text. Markup characters are allowed because the UI
-  // only ever writes them through textContent.
+  // only ever writes them through textContent. The normalized text is also
+  // the ranking identity: the same text is the same player (case-sensitive).
+  // No name, or typing the guest name itself, is the one shared guest entry.
   function normalizeNickname(raw) {
     const text = typeof raw === "string" ? raw : "";
-    const cleaned = text.replace(INVISIBLE_CHARS, "").replace(/\s+/g, " ").trim();
-    if (cleaned === "") {
+    const cleaned = text.replace(INVISIBLE_CHARS, "").replace(/\s+/g, " ").trim().normalize("NFC");
+    if (cleaned === "" || cleaned === DEFAULT_NICKNAME) {
       return { ok: true, value: DEFAULT_NICKNAME, isGuest: true };
     }
     if (Array.from(cleaned).length > NICKNAME_MAX) {
@@ -255,21 +283,116 @@
 
   // ---- local record ------------------------------------------------------
 
+  // Stored shape (STORAGE_KEY):
+  //   { v: 2, nickname, players: [{ name, best }], legacyBest, audio }
+  // players is the per-name ranking for this device, kept sorted: higher best
+  // first, and on a tie whoever reached that score first stays ahead.
+
+  function own(data, key) {
+    return Object.prototype.hasOwnProperty.call(data, key);
+  }
+
+  function isPlainObject(data) {
+    return Boolean(data) && typeof data === "object" && !Array.isArray(data);
+  }
+
+  function isValidScore(score) {
+    return Number.isSafeInteger(score) && score >= 1 && score <= MAX_SCORE;
+  }
+
+  function sanitizeNickname(value) {
+    const nickname = normalizeNickname(value);
+    return nickname.ok && !nickname.isGuest ? nickname.value : "";
+  }
+
+  function sanitizeAudio(data) {
+    const audio = Object.assign({}, DEFAULT_AUDIO);
+    if (!isPlainObject(data)) {
+      return audio;
+    }
+    for (const key of ["seMuted", "bgmMuted"]) {
+      if (own(data, key)) {
+        audio[key] = data[key] === true;
+      }
+    }
+    for (const key of ["seVolume", "bgmVolume"]) {
+      if (own(data, key) && Number.isInteger(data[key]) && data[key] >= 1 && data[key] <= VOLUME_MAX) {
+        audio[key] = data[key];
+      }
+    }
+    return audio;
+  }
+
+  // Drops anything malformed, merges duplicate names into their higher score
+  // and re-sorts, so a hand-edited or damaged list still ranks the same way
+  // every time. Only a bounded prefix of a huge list is looked at.
+  function sanitizePlayers(list) {
+    const byName = new Map();
+    if (Array.isArray(list)) {
+      const limit = Math.min(list.length, MAX_PLAYERS * 10);
+      for (let i = 0; i < limit; i += 1) {
+        const entry = list[i];
+        if (!isPlainObject(entry) || !own(entry, "name") || !own(entry, "best")) {
+          continue;
+        }
+        if (typeof entry.name !== "string" || !isValidScore(entry.best)) {
+          continue;
+        }
+        const who = normalizeNickname(entry.name);
+        if (!who.ok) {
+          continue;
+        }
+        const known = byName.get(who.value);
+        if (!known || entry.best > known.best) {
+          byName.set(who.value, { name: who.value, best: entry.best, guest: who.isGuest, order: i });
+        }
+      }
+    }
+    return Array.from(byName.values())
+      .sort((a, b) => b.best - a.best || a.order - b.order)
+      .slice(0, MAX_PLAYERS)
+      .map((player) => ({ name: player.name, best: player.best, guest: player.guest }));
+  }
+
+  function emptyRecord() {
+    return { nickname: "", players: [], legacyBest: 0, audio: Object.assign({}, DEFAULT_AUDIO) };
+  }
+
   function sanitizeRecord(data) {
-    const record = { bestScore: 0, nickname: "", muted: false };
-    if (!data || typeof data !== "object" || Array.isArray(data)) {
+    const record = emptyRecord();
+    if (own(data, "nickname") && typeof data.nickname === "string") {
+      record.nickname = sanitizeNickname(data.nickname);
+    }
+    if (own(data, "players")) {
+      record.players = sanitizePlayers(data.players);
+    }
+    if (own(data, "legacyBest") && isValidScore(data.legacyBest)) {
+      record.legacyBest = data.legacyBest;
+    }
+    if (own(data, "audio")) {
+      record.audio = sanitizeAudio(data.audio);
+    }
+    return record;
+  }
+
+  // Version 1 stored one device-wide best with no name attached. It is kept
+  // as legacyBest and never turned into a ranking entry: nobody knows who
+  // scored it, and it was played with four ingredients. v1 "muted" silenced
+  // everything, so it mutes both channels.
+  function migrateLegacy(data) {
+    const record = emptyRecord();
+    if (!isPlainObject(data)) {
       return record;
     }
-    const has = (key) => Object.prototype.hasOwnProperty.call(data, key);
-    if (has("bestScore") && Number.isInteger(data.bestScore) && data.bestScore >= 0 && data.bestScore <= MAX_STORED_SCORE) {
-      record.bestScore = data.bestScore;
+    if (own(data, "nickname") && typeof data.nickname === "string") {
+      record.nickname = sanitizeNickname(data.nickname);
     }
-    if (has("nickname") && typeof data.nickname === "string") {
-      const nickname = normalizeNickname(data.nickname);
-      record.nickname = nickname.ok && !nickname.isGuest ? nickname.value : "";
+    if (own(data, "bestScore") && isValidScore(data.bestScore)) {
+      record.legacyBest = data.bestScore;
     }
-    if (has("muted")) {
-      record.muted = data.muted === true;
+    if (own(data, "muted") && data.muted === true) {
+      record.audio.seMuted = true;
+      record.audio.bgmMuted = true;
     }
     return record;
   }
@@ -287,20 +410,32 @@
       }
     }
 
-    function load() {
-      if (record) {
-        return Object.assign({}, record);
-      }
-      let parsed = null;
+    function read(key) {
       try {
         const store = storage();
-        const raw = store ? store.getItem(STORAGE_KEY) : null;
-        parsed = typeof raw === "string" ? JSON.parse(raw) : null;
+        const raw = store ? store.getItem(key) : null;
+        return typeof raw === "string" ? JSON.parse(raw) : null;
       } catch (error) {
-        parsed = null;
+        return null;
       }
-      record = sanitizeRecord(parsed);
-      return Object.assign({}, record);
+    }
+
+    function snapshot() {
+      return {
+        nickname: record.nickname,
+        players: record.players.map((player) => Object.assign({}, player)),
+        legacyBest: record.legacyBest,
+        audio: Object.assign({}, record.audio),
+      };
+    }
+
+    // The v1 key is only read, never rewritten or removed.
+    function load() {
+      if (!record) {
+        const current = read(STORAGE_KEY);
+        record = isPlainObject(current) ? sanitizeRecord(current) : migrateLegacy(read(LEGACY_STORAGE_KEY));
+      }
+      return snapshot();
     }
 
     function persist() {
@@ -309,37 +444,160 @@
         if (!store) {
           return false;
         }
-        store.setItem(STORAGE_KEY, JSON.stringify(Object.assign({ v: 1 }, record)));
+        store.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            v: 2,
+            nickname: record.nickname,
+            players: record.players.map((player) => ({ name: player.name, best: player.best })),
+            legacyBest: record.legacyBest,
+            audio: record.audio,
+          })
+        );
         return true;
       } catch (error) {
         return false;
       }
     }
 
-    function saveBest(score) {
+    // One entry per name, holding that name's best. rank is 1-based, 0 when
+    // the name is not on the list. persisted is false when a new best could
+    // only be kept in memory.
+    function recordScore(name, score) {
       load();
-      const valid = Number.isInteger(score) && score > 0 && score <= MAX_STORED_SCORE;
-      const isNewBest = valid && score > record.bestScore;
-      if (isNewBest) {
-        record.bestScore = score;
-        persist();
+      const who = normalizeNickname(name);
+      let index = who.ok ? record.players.findIndex((player) => player.name === who.value) : -1;
+      let isNewBest = false;
+      let persisted = true;
+      if (who.ok && isValidScore(score) && (index === -1 || score > record.players[index].best)) {
+        if (index !== -1) {
+          record.players.splice(index, 1);
+        }
+        let at = 0;
+        while (at < record.players.length && record.players[at].best >= score) {
+          at += 1;
+        }
+        record.players.splice(at, 0, { name: who.value, best: score, guest: who.isGuest });
+        record.players.length = Math.min(record.players.length, MAX_PLAYERS);
+        index = at < MAX_PLAYERS ? at : -1;
+        isNewBest = index !== -1;
+        persisted = persist();
       }
-      return { bestScore: record.bestScore, isNewBest };
+      return { best: index === -1 ? 0 : record.players[index].best, rank: index + 1, isNewBest, persisted };
+    }
+
+    function top(count) {
+      return load().players.slice(0, count === undefined ? RANK_SHOWN : count);
     }
 
     function saveNickname(nickname) {
       load();
-      record.nickname = sanitizeRecord({ nickname }).nickname;
+      record.nickname = sanitizeNickname(nickname);
       persist();
     }
 
-    function saveMuted(muted) {
+    function saveAudio(audio) {
       load();
-      record.muted = muted === true;
+      record.audio = sanitizeAudio(audio);
       persist();
+      return Object.assign({}, record.audio);
     }
 
-    return { load, saveBest, saveNickname, saveMuted };
+    return { load, recordScore, top, saveNickname, saveAudio };
+  }
+
+  // ---- background music ----------------------------------------------------
+
+  // An original eight-bar loop written for this game (C major, I-vi-IV-V
+  // twice), one entry per eighth note as a MIDI note number; 0 is a rest.
+  const BGM = Object.freeze({
+    stepSec: 0.27,
+    lookaheadSec: 0.45,
+    leadSec: 0.08,
+    melody: Object.freeze([
+      76, 0, 79, 0, 81, 79, 76, 0,
+      72, 0, 76, 0, 74, 72, 69, 0,
+      77, 0, 81, 0, 79, 77, 74, 0,
+      74, 76, 79, 0, 71, 0, 74, 0,
+      76, 0, 79, 0, 84, 81, 79, 0,
+      81, 0, 79, 76, 0, 72, 74, 0,
+      77, 0, 74, 77, 81, 0, 79, 0,
+      79, 0, 74, 0, 72, 0, 0, 0,
+    ]),
+    bass: Object.freeze(
+      [48, 45, 41, 43, 48, 45, 41, 43].reduce(
+        (steps, root) => steps.concat([root, 0, root + 7, 0, root + 12, 0, root + 7, 0]),
+        []
+      )
+    ),
+  });
+
+  function midiToHz(midi) {
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  // Decides which notes to hand to the audio clock, each exactly once.
+  // It owns no timer: the caller polls due(now) (the game's single frame
+  // loop does), so there is nothing here that could run twice. Times are in
+  // seconds on the caller's audio clock.
+  function createBgmSequencer() {
+    let playing = false;
+    let step = 0;
+    let nextAt = 0;
+
+    // Continues from the step it stopped at. Starting twice does nothing.
+    function start(nowSec) {
+      if (playing) {
+        return false;
+      }
+      playing = true;
+      nextAt = nowSec + BGM.leadSec;
+      return true;
+    }
+
+    function stop() {
+      playing = false;
+    }
+
+    // Back to the top of the tune, for a new round.
+    function reset() {
+      step = 0;
+    }
+
+    function due(nowSec) {
+      const notes = [];
+      if (!playing || !(nowSec >= 0)) {
+        return notes;
+      }
+      // After a stall the tune carries on from now instead of bursting to catch up.
+      if (nextAt < nowSec) {
+        nextAt = nowSec + BGM.leadSec;
+      }
+      while (nextAt < nowSec + BGM.lookaheadSec) {
+        for (const voice of ["melody", "bass"]) {
+          const midi = BGM[voice][step];
+          if (midi) {
+            notes.push({ voice, step, midi, hz: midiToHz(midi), atSec: nextAt });
+          }
+        }
+        step = (step + 1) % BGM.melody.length;
+        nextAt += BGM.stepSec;
+      }
+      return notes;
+    }
+
+    return {
+      start,
+      stop,
+      reset,
+      due,
+      get playing() {
+        return playing;
+      },
+      get step() {
+        return step;
+      },
+    };
   }
 
   // ---- share -------------------------------------------------------------
@@ -543,7 +801,7 @@
         slots[index] = {
           id: ingredient.id,
           placedAt: t,
-          burnMs: cookWindows(ingredient.idealMs).burnMs,
+          burnMs: windowsFor(ingredient.id).burnMs,
           burnt: false,
         };
         return { type: "placed", slot: index, ingredient: ingredient.id };
@@ -667,16 +925,25 @@
     POPULAR_BONUS,
     TAP_GUARD_MS,
     CHALLENGE_VERSION,
+    LEGACY_CHALLENGE_VERSION,
     MAX_SEED,
     NICKNAME_MAX,
     DEFAULT_NICKNAME,
     STORAGE_KEY,
+    LEGACY_STORAGE_KEY,
+    MAX_SCORE,
+    MAX_PLAYERS,
+    RANK_SHOWN,
+    VOLUME_MAX,
+    DEFAULT_AUDIO,
+    BGM,
     GRADE,
     STAGE,
     INGREDIENTS,
     INGREDIENT_IDS,
     ingredientById,
     cookWindows,
+    windowsFor,
     stageForAge,
     gradeForStage,
     cookStage,
@@ -692,7 +959,10 @@
     buildChallengeHash,
     buildChallengeUrl,
     normalizeNickname,
+    isValidScore,
     createRecordStore,
+    midiToHz,
+    createBgmSequencer,
     shareChallenge,
     createParticlePool,
     createGame,
