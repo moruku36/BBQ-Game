@@ -46,9 +46,11 @@ function check(condition, message) { assert.ok(condition, message); checks++; }
         const ids=["languageGame","soundButton","pauseButton",...Array.from({length:6},(_,i)=>"slot-"+i),...BBQCore.INGREDIENT_IDS.map(id=>"ing-"+id)];
         return ids.map(id=>{const r=document.getElementById(id).getBoundingClientRect();return {id,x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom};});
       });
+      await page.screenshot({path:path.join(OUT,width+"x"+height+"-"+language+"-game.png")});
+      console.log(JSON.stringify({width,height,language,controls}));
       for(const c of controls){
         check(c.w>=44&&c.h>=44,"44px target "+c.id);
-        check(c.x>=-1&&c.y>=-1&&c.right<=width+1&&c.bottom<=height+1,"inside viewport "+c.id);
+        check(c.x>=-1&&c.y>=-1&&c.right<=width+1&&c.bottom<=height+1,"inside viewport "+JSON.stringify(c));
       }
       await page.locator("#slot-0").tap();
       await page.evaluate(()=>bbqTestAdvance(1000)); await page.waitForTimeout(80);
