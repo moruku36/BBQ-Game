@@ -1,4 +1,30 @@
-# BBQ Party ranking: implementation and pending live operations
+# BBQ Party ranking: live operations
+
+## Live connection approved and verified, 2026-10-09 JST
+
+The owner directly approved SQL/RLS/server-only grants and RPC on `cyhqsliolbcgxvlblvas` (bbq-party-ranking, Tokyo, Free), public `bbq-ranking` with JWT verification disabled, and verification before merge/Pages publication. The first tool request failed with an expired request state; a read-only check confirmed nothing had been applied. A retry through the same migration tool succeeded. No approval-review rejection or alternative application route occurred in this handoff.
+
+The reviewed SQL at `ff5d07ee66b502e3bcaa453fb94a88dd759fb4c7` is applied. Edge Function version 1 deploys that commit's unchanged `core.js`, handler and entrypoint. The public URL is configured in ranking-config.js; CSP allows only its exact Supabase origin for connections. Built-in backend environment variables are used internally; no secret values or database keys/passwords were retrieved, entered, or copied to the frontend.
+
+Live verification used the candidate static files at the exact Pages origin through a local browser test fixture, with real network requests to Supabase. Two independent Chrome 155 processes and storage contexts verified actual sixty-second play, language switching without reset, default-off consent, no automatic score upload, shared score visibility and separate local records. Additional real API checks passed identical retry, conflicting reuse, injected-score rejection, foreign-origin rejection, oversized input, the sixty-second minimum, shared rate limiting including failed requests, bounded Retry-After and local play during a simulated network outage. Edge could not launch in this sandbox; this does not claim Edge, Safari or physical-device coverage. Screenshots were inspected.
+
+Catalog checks confirmed all four private tables have RLS, no anon/authenticated table or schema privileges, and service_role table access. Actual SELECT attempts against each table and actual RPC attempts under both public roles were denied. The RPC is SECURITY INVOKER with a fixed search_path. Advisors returned informational no-policy findings: deliberately deny all ordinary roles while the server's service_role accesses the private tables. An identical retry left one receipt and one public score. Verification records are removed before release.
+
+CI continues to use an isolated PostgreSQL database. Its browser fixtures replace production configuration, preventing real backend traffic; the fake-browser fixture defaults to disabled ranking. Local checks pass 132 tests with the isolated database test skipped; the PR CI supplies PostgreSQL and must pass all tests before merge.
+
+### Limits, retention and cost
+
+Keep the owner-selected Free plan; no upgrade, paid resource, keepalive scheduler or new credential is authorized. Existing shared budgets apply to the whole game: 20 runs/10 minutes, 10 submissions/10 minutes, 60 top reads/minute, 120 total requests/minute. Invalid requests and OPTIONS count too. No IP headers are trusted. Only three public scores remain; runs/actions/receipts expire within their documented 24-hour windows, rate counters within an hour. Cleanup is bounded and request-driven: idle expired rows can await later requests.
+
+The [published Free plan](https://supabase.com/pricing) includes 500 MB database storage, 5 GB egress, 500,000 Edge invocations and one-day API/database log retention. The live database was about 11 MB after verification. API admission limits do not guarantee monthly invocation quotas: rejected inbound calls also invoke the function. Free-plan provider quota restrictions can make ranking unavailable; never upgrade automatically. Local play remains available. Provider operational metadata is separate from application records; one-day API/database log retention is not a promise that every internal provider record is deleted on that deadline.
+
+### Rollback
+
+Clear `apiBase` in ranking-config.js and restore CSP `connect-src 'none'`, commit and publish through Pages to disable client ranking. Do not drop tables or erase player records as an automatic rollback. Service-side shutdown or data deletion outside verification records needs its own scope.
+
+## Historical pre-connection handoff
+
+The following records describe the earlier draft, delegated-approval rejections and isolated verification. They are retained as history; the live state above supersedes their pending-operation status.
 
 This branch implements the UI, portable API handler and SQL draft. It is **not connected to a live Supabase project**: `ranking-config.js` has an empty endpoint and the production CSP still has `connect-src 'none'`. Local play remains available. Do not treat successful isolated CI as proof of a working public deployment.
 

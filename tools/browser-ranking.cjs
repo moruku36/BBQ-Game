@@ -27,8 +27,8 @@ const server=http.createServer(async(req,res)=>{
   const file=path.resolve(ROOT,decodeURIComponent(pathname.slice(10))||"index.html");
   if(!file.startsWith(ROOT+path.sep)){res.writeHead(403).end();return;}
   let body=fs.readFileSync(file);
-  // This isolated fixture enables only its own loopback API; production CSP stays connect-src 'none'.
-  if(file.endsWith("index.html"))body=body.toString().replace("connect-src 'none'","connect-src 'self'");
+  // This isolated fixture replaces the production endpoint with its own loopback API.
+  if(file.endsWith("index.html"))body=body.toString().replace(/connect-src [^;]+/,"connect-src 'self'");
   if(file.endsWith("ranking-config.js"))body='window.BBQRankingConfig=Object.freeze({apiBase:'+JSON.stringify(base+"/api")+',testLocal:true});';
   const mime={".html":"text/html",".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml",".png":"image/png",".ico":"image/x-icon"};
   res.writeHead(200,{"Content-Type":mime[path.extname(file)]||"application/octet-stream"}).end(body);

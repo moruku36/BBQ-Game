@@ -1,5 +1,7 @@
 # Shared ranking — proposal only, not deployed
 
+Historical design notes. The directly approved live implementation and current operational status are recorded in [RANKING-OPERATIONS.md](RANKING-OPERATIONS.md); statements below about pending approval or an empty endpoint describe the earlier draft.
+
 GitHub Pages stays static. Add one API and Postgres, with Supabase as a candidate pending target approval. Read-only discovery found the active, unrelated jev-learning-quest project and one inactive project; neither is BBQ-specific. No project, table, RLS, function or key has been created or changed.
 
 One combined approval should identify the exact existing/new project and budget, isolated BBQ tables/API, anonymous public endpoint, RLS/grants, backend-only credential setup and temporary anti-abuse metadata retention. Do not use or resume unrelated existing services without this approval.

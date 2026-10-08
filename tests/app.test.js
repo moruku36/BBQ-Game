@@ -1346,7 +1346,7 @@ test("the page is static, loads no external resources and has no heat slider", (
   assert.doesNotMatch(html, /(?:src|href)="(?:https?:)?\/\//, "no external scripts, styles or fonts");
   assert.doesNotMatch(css, /@import|url\(/);
   assert.doesNotMatch(read("core.js"), /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|importScripts/);
-  assert.match(read("ranking-config.js"), /apiBase: ""/);
+  assert.match(read("ranking-config.js"), /apiBase: "https:\/\/cyhqsliolbcgxvlblvas\.supabase\.co\/functions\/v1\/bbq-ranking"/);
   assert.doesNotMatch(html, /type="range"/);
   assert.doesNotMatch(html + js, /heat|火力/i);
   assert.equal((html.match(/class="slot"/g) || []).length, 6);
@@ -1405,13 +1405,13 @@ test("the page asks not to be indexed and ships a strict CSP that its own code o
     "script-src": "'self'",
     "style-src": "'self'",
     "img-src": "'self'",
-    "connect-src": "'none'",
+    "connect-src": "https://cyhqsliolbcgxvlblvas.supabase.co",
     "object-src": "'none'",
     "base-uri": "'none'",
     "form-action": "'none'",
   });
   // frame-ancestors, sandbox and report-uri are ignored in a meta tag: not claimed.
-  assert.doesNotMatch(meta[1], /unsafe-inline|unsafe-eval|frame-ancestors|report-uri|sandbox|\*|https?:|data:|blob:/);
+  assert.doesNotMatch(meta[1], /unsafe-inline|unsafe-eval|frame-ancestors|report-uri|sandbox|\*|data:|blob:/);
   assert.ok(html.indexOf(meta[0]) < html.indexOf("<link"), "the policy comes before anything it governs");
   assert.ok(html.indexOf(meta[0]) < html.indexOf("<script"));
 

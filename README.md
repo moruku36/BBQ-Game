@@ -2,11 +2,11 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-BBQ Party is a 60-second grilling game for the browser. Pick one of six ingredients, tap an empty spot on the six-slot grill, and tap again to collect it at the right moment. Chain good collections for a combo multiplier, follow the "popular" ingredient for a bonus, and try to beat the top three scores on your device. It is plain static HTML, CSS, JavaScript and Canvas: no framework, no build step, no backend, no external requests.
+BBQ Party is a 60-second grilling game for the browser. Pick one of six ingredients, tap an empty spot on the six-slot grill, and tap again to collect it at the right moment. Chain good collections for a combo multiplier, follow the "popular" ingredient for a bonus, and try to beat the top three scores on your device. The game is static HTML, CSS, JavaScript and Canvas with no framework or build step. A Supabase API provides optional shared scores.
 
 The interface supports Japanese and English. The language button is available on every screen, remembers your choice when storage works and keeps the current round intact. Initial language follows the browser's supported preference (otherwise English).
 
-This draft adds language switching only. Shared online ranking is still an approval proposal in `RANKING-PROPOSAL.md`; the current board remains explicitly local.
+Shared top-three scores are separate from device bests. Publishing requires explicit consent to make the nickname and score public; no device records are automatically uploaded. Online service failure leaves local play available.
 
 [Play the published game](https://moruku36.github.io/BBQ-Game/) | [Version 2 verification and images](BROWSER-VERIFICATION-v2.md) — owner-reviewed and published.
 
@@ -133,6 +133,6 @@ Version 2 was also checked in a new isolated headless Chrome 153.0.8010.55: **10
 
 History: [BROWSER-VERIFICATION.md](BROWSER-VERIFICATION.md) and the screenshots in `assets/` record the real Chrome verification of **version 1** (four ingredients, 69 Node tests). They are kept as a record of that release and do not show or verify version 2.
 
-## Optional shared scores (draft)
+## Optional shared scores
 
-The bilingual UI now includes a separate public-score board and explicit publication consent. The endpoint remains empty; public submissions are disabled until exact-target Supabase access/credential approvals and live verification. Device bests still work independently. See [ranking operations](RANKING-OPERATIONS.md) and [proposed limits/retention](RANKING-PROPOSAL.md). CI tests use only a disposable database.
+The bilingual UI connects to the Tokyo Supabase project through one public Edge Function. Browsers receive no database key and cannot access the four private tables or server-only RPC. The API validates action logs, recalculates scores and uses shared rate limits. See [ranking operations](RANKING-OPERATIONS.md) for limits, retention and rollback. CI uses a disposable database and disables production requests.

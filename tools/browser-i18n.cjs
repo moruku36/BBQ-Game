@@ -15,7 +15,8 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(ROOT + path.sep)) { res.writeHead(403).end(); return; }
   try {
     const mime = { ".html":"text/html", ".css":"text/css", ".js":"text/javascript", ".svg":"image/svg+xml", ".ico":"image/x-icon", ".png":"image/png" };
-    res.writeHead(200, { "Content-Type": mime[path.extname(file)] || "application/octet-stream" }).end(fs.readFileSync(file));
+    const body=file.endsWith('ranking-config.js')?'window.BBQRankingConfig=Object.freeze({apiBase:""});':fs.readFileSync(file);
+    res.writeHead(200, { "Content-Type": mime[path.extname(file)] || "application/octet-stream" }).end(body);
   } catch (_) { res.writeHead(404).end(); }
 });
 let checks = 0;
