@@ -95,6 +95,7 @@ textarea,
 }
 
 .game {
+  grid-template-columns: minmax(0, 1fr);
   position: relative;
   z-index: 1;
   height: 100%;
@@ -278,7 +279,7 @@ textarea,
 }
 
 .hud-time.is-urgent .hud-label::after {
-  content: "！いそいで";
+  content: attr(data-urgent-label);
   color: var(--red-deep);
 }
 
@@ -629,7 +630,7 @@ textarea,
 }
 
 .ing.is-selected::after {
-  content: "えらび中";
+  content: attr(data-selected-label);
   position: absolute;
   top: -8px;
   left: -2px;

@@ -42,6 +42,7 @@ function check(condition, message) { assert.ok(condition, message); checks++; }
       await page.locator("#nicknameInput").fill("<b>Ken</b>"); await page.locator("#startButton").click();
       check(await page.locator("#hudPlayer").textContent()==="<b>Ken</b>","nickname text");
       check(await page.locator("#hudPlayer b").count()===0,"no nickname markup");
+      check((await page.locator("#ing-shrimp").getAttribute("data-selected-label")) === (language==="ja" ? "えらび中" : "Selected"),"selected badge translated");
       const controls=await page.evaluate(()=>{
         const ids=["languageGame","soundButton","pauseButton",...Array.from({length:6},(_,i)=>"slot-"+i),...BBQCore.INGREDIENT_IDS.map(id=>"ing-"+id)];
         return ids.map(id=>{const r=document.getElementById(id).getBoundingClientRect();return {id,x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom};});
