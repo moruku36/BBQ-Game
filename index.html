@@ -20,6 +20,7 @@
       <header class="topbar">
         <h1 class="brand">BBQ Party</h1>
         <span class="player" id="hudPlayer"></span>
+        <button type="button" class="language-btn" id="languageGame">English</button>
         <button type="button" class="icon-btn" id="soundButton" aria-haspopup="dialog" aria-label="音の設定">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
             <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>
@@ -33,14 +34,14 @@
             <rect x="6" y="5" width="4.5" height="14" rx="1.5" fill="currentColor"/>
             <rect x="13.5" y="5" width="4.5" height="14" rx="1.5" fill="currentColor"/>
           </svg>
-          <span class="icon-btn-text">停止</span>
+          <span class="icon-btn-text"><span id="i18n-2">停止</span></span>
         </button>
       </header>
 
-      <section class="hud" aria-label="ゲームの状況">
+      <section class="hud" aria-label="ゲームの状況" id="i18n-61">
         <div class="hud-card hud-time" id="timeCard">
-          <span class="hud-label">のこり</span>
-          <span class="hud-value"><strong id="hudTime">60</strong><span class="hud-unit">秒</span></span>
+          <span class="hud-label"><span id="i18n-3">のこり</span></span>
+          <span class="hud-value"><strong id="hudTime">60</strong><span class="hud-unit"><span id="i18n-4">秒</span></span></span>
           <span class="timebar" aria-hidden="true"><span class="timebar-fill" id="hudTimeBar"></span></span>
         </div>
         <div class="hud-card hud-score" id="scoreCard">
@@ -48,19 +49,19 @@
             <svg class="plate" viewBox="0 0 28 18" width="28" height="18" aria-hidden="true" focusable="false">
               <ellipse cx="14" cy="10" rx="13" ry="7" fill="#fff" stroke="#2b2623" stroke-width="1.6"/>
               <ellipse cx="14" cy="9.4" rx="8" ry="3.8" fill="none" stroke="#d8402f" stroke-width="1.4"/>
-            </svg>
+            </svg><span id="i18n-5">
             スコア
-          </span>
+          </span></span>
           <span class="hud-value"><strong id="hudScore">0</strong></span>
         </div>
         <div class="hud-card hud-combo" id="comboCard">
-          <span class="hud-label">コンボ</span>
+          <span class="hud-label"><span id="i18n-6">コンボ</span></span>
           <span class="hud-value"><strong id="hudCombo">0</strong><span class="hud-unit" id="hudMult">x1.0</span></span>
         </div>
       </section>
 
       <section class="rank" aria-labelledby="hudRankTitle">
-        <h2 class="rank-title" id="hudRankTitle">この端末の<wbr>上位3人</h2>
+        <h2 class="rank-title" id="hudRankTitle"><span id="i18n-7">この端末の</span><wbr><span id="i18n-8">上位3人</span></h2>
         <ol class="rank-list">
           <li class="rank-row is-empty" id="hudRank-0"><span class="rank-pos">1</span><span class="rank-name" id="hudRankName-0">—</span><span class="rank-score" id="hudRankScore-0"></span></li>
           <li class="rank-row is-empty" id="hudRank-1"><span class="rank-pos">2</span><span class="rank-name" id="hudRankName-1">—</span><span class="rank-score" id="hudRankScore-1"></span></li>
@@ -68,16 +69,16 @@
         </ol>
       </section>
 
-      <section class="popular" aria-label="いま人気の食材">
+      <section class="popular" aria-label="いま人気の食材" id="i18n-62">
         <canvas class="popular-icon" id="popularIcon" width="48" height="48" aria-hidden="true"></canvas>
         <div class="popular-main">
-          <span class="popular-label">いま人気 <b class="bonus-tag">+50</b></span>
+          <span class="popular-label"><span id="i18n-9">いま人気 </span><b class="bonus-tag">+50</b></span>
           <strong class="popular-name" id="popularName">-</strong>
         </div>
         <div class="popular-side">
           <span class="popular-countdown" id="popularCountdown"></span>
           <span class="popular-next" id="nextWrap">
-            <span class="next-label">つぎ ▶</span>
+            <span class="next-label"><span id="i18n-10">つぎ ▶</span></span>
             <canvas class="next-icon" id="nextIcon" width="28" height="28" aria-hidden="true"></canvas>
             <span id="nextName"></span>
           </span>
@@ -159,23 +160,24 @@
 
     <section class="overlay" id="screenStart" role="dialog" aria-modal="true" aria-labelledby="startTitle">
       <form class="card" id="startForm" novalidate>
-        <p class="card-eyebrow">60秒 グリルチャレンジ</p>
+        <p class="card-eyebrow"><span id="i18n-17">60秒 グリルチャレンジ</span></p>
+        <button type="button" class="language-btn card-language" id="languageStart">English</button>
         <h2 class="card-title" id="startTitle">BBQ Party</h2>
         <ol class="howto">
-          <li><b>食材トレイ</b>から食材をえらぶ</li>
-          <li><b>空いた網をタップ</b>して置く</li>
-          <li>焼けたら<b>もう一度タップ</b>して回収</li>
+          <li><b><span id="i18n-18">食材トレイ</span></b><span id="i18n-19">から食材をえらぶ</span></li>
+          <li><b><span id="i18n-20">空いた網をタップ</span></b><span id="i18n-21">して置く</span></li>
+          <li><span id="i18n-22">焼けたら</span><b><span id="i18n-23">もう一度タップ</span></b><span id="i18n-24">して回収</span></li>
         </ol>
-        <ul class="legend" aria-label="焼きかげんの見かた">
-          <li><span class="chip chip-raw">○ 生</span>0点・コンボ終了</li>
+        <ul class="legend" aria-label="焼きかげんの見かた" id="i18n-63">
+          <li><span class="chip chip-raw"><span id="i18n-25">○ 生</span></span><span id="i18n-26">0点・コンボ終了</span></li>
           <li><span class="chip chip-good">◆ GOOD</span>60%</li>
           <li><span class="chip chip-perfect">★ PERFECT</span>100%</li>
-          <li><span class="chip chip-burnt">✕ コゲ</span>0点・コンボ終了</li>
+          <li><span class="chip chip-burnt"><span id="i18n-27">✕ コゲ</span></span><span id="i18n-28">0点・コンボ終了</span></li>
         </ul>
-        <p class="card-note">「いま人気」は +50点。コンボで最大2倍。★PERFECTの幅は食材でちがいます（しいたけは広め、ステーキはせまめ）。</p>
+        <p class="card-note"><span id="i18n-29">「いま人気」は +50点。コンボで最大2倍。★PERFECTの幅は食材でちがいます（しいたけは広め、ステーキはせまめ）。</span></p>
 
         <label class="field" for="nicknameInput">
-          <span class="field-label">ニックネーム（なくてもOK・12文字まで）</span>
+          <span class="field-label"><span id="i18n-30">ニックネーム（なくてもOK・12文字まで）</span></span>
           <input class="field-input" id="nicknameInput" name="nickname" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="24" placeholder="ゲスト" aria-describedby="nicknameError">
         </label>
         <p class="field-error" id="nicknameError" role="alert" hidden></p>
@@ -199,12 +201,13 @@
           </ol>
           <p class="board-note" id="startLegacy" hidden></p>
         </div>
-        <p class="card-fine">同じ名前は1人として、ベストだけを残します。名前なしは全員「ゲスト」の1枠です。記録はこの端末だけに保存されます。全国ランキングはありません。</p>
+        <p class="card-fine"><span id="i18n-34">同じ名前は1人として、ベストだけを残します。名前なしは全員「ゲスト」の1枠です。記録はこの端末だけに保存されます。全国ランキングはありません。</span></p>
       </form>
     </section>
 
     <section class="overlay" id="pauseOverlay" role="dialog" aria-modal="true" aria-labelledby="pauseTitle" hidden>
       <div class="card card-small">
+        <button type="button" class="language-btn card-language" id="languagePause">English</button>
         <h2 class="card-title" id="pauseTitle">一時停止中</h2>
         <p class="card-note" id="pauseReason">タイマーも食材も止まっています。</p>
         <button type="button" class="btn btn-primary" id="resumeButton">つづける</button>
@@ -214,15 +217,16 @@
 
     <section class="overlay" id="screenResult" role="dialog" aria-modal="true" aria-labelledby="resultTitle" hidden>
       <div class="card">
-        <p class="card-eyebrow">タイムアップ</p>
+        <p class="card-eyebrow"><span id="i18n-39">タイムアップ</span></p>
+        <button type="button" class="language-btn card-language" id="languageResult">English</button>
         <h2 class="card-title" id="resultTitle">けっか</h2>
-        <p class="result-player"><span id="resultNickname"></span> さんのスコア</p>
-        <p class="result-score"><strong id="resultScore">0</strong><span>点</span></p>
+        <p class="result-player"><span id="resultNickname"></span><span id="i18n-41"> さんのスコア</span></p>
+        <p class="result-score"><strong id="resultScore">0</strong><span><span id="i18n-42">点</span></span></p>
         <p class="result-newbest" id="resultNewBest" hidden>★ ベスト更新！</p>
         <dl class="result-stats">
           <div><dt>★ PERFECT</dt><dd id="resultPerfect">0</dd></div>
-          <div><dt>✕ コゲ</dt><dd id="resultBurned">0</dd></div>
-          <div><dt>最大コンボ</dt><dd id="resultMaxCombo">0</dd></div>
+          <div><dt><span id="i18n-44">✕ コゲ</span></dt><dd id="resultBurned">0</dd></div>
+          <div><dt><span id="i18n-45">最大コンボ</span></dt><dd id="resultMaxCombo">0</dd></div>
         </dl>
         <p class="card-meta"><span id="resultBest"></span></p>
         <p class="board-note" id="resultSaveNote" hidden>この端末に保存できませんでした。ページを閉じると記録は消えます。</p>
@@ -242,16 +246,17 @@
         </div>
         <p class="share-status" id="shareStatus" role="status" aria-live="polite"></p>
         <label class="field" id="shareFallback" for="shareFallbackText" hidden>
-          <span class="field-label">このリンクをコピーして送ってください</span>
+          <span class="field-label"><span id="i18n-52">このリンクをコピーして送ってください</span></span>
           <input class="field-input" id="shareFallbackText" type="text" readonly>
         </label>
         <p class="card-meta"><span class="copyable" id="resultSeed"></span></p>
-        <p class="card-fine">記録はこの端末だけに保存されます。全国ランキングはありません。リンクにニックネームは入りません。</p>
+        <p class="card-fine"><span id="i18n-53">記録はこの端末だけに保存されます。全国ランキングはありません。リンクにニックネームは入りません。</span></p>
       </div>
     </section>
 
     <section class="overlay overlay-top" id="soundOverlay" role="dialog" aria-modal="true" aria-labelledby="soundTitle" hidden>
       <div class="card card-small">
+        <button type="button" class="language-btn card-language" id="languageSound">English</button>
         <h2 class="card-title" id="soundTitle">音の設定</h2>
         <div class="sound-row" role="group" aria-labelledby="seLabel">
           <span class="sound-label" id="seLabel">効果音</span>
@@ -267,7 +272,7 @@
           <span class="sound-level" id="bgmLevel" role="status">3/5</span>
           <button type="button" class="step-btn" id="bgmUp" aria-label="BGMの音量を上げる">＋</button>
         </div>
-        <p class="card-fine">BGMはこのゲーム用に作った短いオリジナル曲で、プレイ中だけ流れます。設定はこの端末に保存されます。</p>
+        <p class="card-fine"><span id="i18n-59">BGMはこのゲーム用に作った短いオリジナル曲で、プレイ中だけ流れます。設定はこの端末に保存されます。</span></p>
         <button type="button" class="btn btn-primary" id="soundCloseButton">とじる</button>
       </div>
     </section>
@@ -275,6 +280,7 @@
 
   <script src="core.js"></script>
   <script src="art.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

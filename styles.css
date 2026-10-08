@@ -1253,3 +1253,27 @@ textarea,
     transform: none;
   }
 }
+
+/* The language choice does not reset a round. */
+.language-btn {
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border: 2px solid var(--charcoal);
+  border-radius: 12px;
+  color: var(--charcoal);
+  background: var(--cream);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.card-language { float: right; margin: 0 0 4px 8px; }
+html[lang="en"] .ing-name { font-size: 0.68rem; }
+html[lang="en"] .ing-meta, html[lang="en"] .ing-window { font-size: 0.56rem; }
+@media (max-width: 390px) {
+  .topbar { gap: 4px; }
+  .brand { padding: 4px 7px; font-size: 1rem; }
+  html[lang="en"] .rank-title { font-size: 0.55rem; }
+}

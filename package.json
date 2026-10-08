@@ -4,6 +4,6 @@
   "private": true,
   "description": "BBQ Party - a static 60-second grilling game (HTML/CSS/JS/Canvas).",
   "scripts": {
-    "test": "node --test tests/core.test.js tests/app.test.js"
+    "test": "node --test tests/core.test.js tests/app.test.js tests/i18n.test.js"
   }
 }

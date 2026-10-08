@@ -4,7 +4,9 @@
 
 BBQ Party is a 60-second grilling game for the browser. Pick one of six ingredients, tap an empty spot on the six-slot grill, and tap again to collect it at the right moment. Chain good collections for a combo multiplier, follow the "popular" ingredient for a bonus, and try to beat the top three scores on your device. It is plain static HTML, CSS, JavaScript and Canvas: no framework, no build step, no backend, no external requests.
 
-The in-game text is Japanese.
+The interface supports Japanese and English. The language button is available on every screen, remembers your choice when storage works and keeps the current round intact. Initial language follows the browser's supported preference (otherwise English).
+
+This draft adds language switching only. Shared online ranking is still an approval proposal in `RANKING-PROPOSAL.md`; the current board remains explicitly local.
 
 [Play the published game](https://moruku36.github.io/BBQ-Game/) | [Version 2 verification and images](BROWSER-VERIFICATION-v2.md) — owner-reviewed and published.
 
@@ -99,7 +101,7 @@ Cooking result by time on the grill (`age`), with `P` taken from the table:
 - Nicknames, stored data and the link fragment are untrusted input: they are validated (length, whole-number ranges, entry limits) and only ever written with `textContent` or as a form value.
 - `<meta name="robots" content="noindex, nofollow">` asks search engines not to list the page. There is no `robots.txt` block, so crawlers can read that request.
 - **Limits.** `noindex` is a request, not access control. The site URL, the repository and the source are public, and anyone with the URL can open the game. GitHub Pages does not let this project set HTTP response headers, so HSTS, `X-Frame-Options` and header-only CSP directives such as `frame-ancestors` are not configured by this repository. There is no password, login or private mode.
-- The repository has no build workflow, no secrets and no dependencies.
+- The repository has a read-only test workflow, no deployment workflow or secrets, and no runtime dependencies. Browser tooling is installed only in the isolated CI runner.
 
 ## Technical structure
 
@@ -107,6 +109,7 @@ Cooking result by time on the grill (`age`), with `P` taken from the table:
 - `styles.css` – layout and styling (mobile and desktop)
 - `core.js` – everything with rules and no DOM: ingredient table, cook windows, scoring, the seeded popular schedule, challenge-link parsing and versions, nickname normalisation, the per-name record store and its migration, the BGM score and sequencer, share helper, the game state machine. It takes an injected clock, so it runs unchanged in Node.
 - `art.js` – Canvas drawing for the garden, the grill, the six foods and the timing bar
+- `i18n.js` – UI, help, results, sound and accessible labels in Japanese/English
 - `app.js` – DOM wiring, the single frame loop, Web Audio (one context, a sound-effect bus and a BGM bus), the sound panel, screens and lifecycle
 - `favicon.svg`, `favicon.ico`, `apple-touch-icon.png` – self-made icon; `tools/make-icons.js` regenerates the two fallback files
 - `tests/` – Node tests
@@ -119,6 +122,8 @@ Uses Node's built-in test runner (run here with Node.js 22). No dependencies to 
 ```
 npm test
 ```
+
+`tests/i18n.test.js` checks language selection, switches without state loss, optional storage, translated errors, sharing and text safety. `tools/browser-i18n.cjs` checks real Chromium in both languages at three viewports. It accelerates a round with clock offsets; it does not verify physical phones, Safari, audible output or the native share sheet. Previous v2 test/browser reports below describe the prior release, not this change.
 
 `tests/core.test.js` covers the rules with an injected clock. `tests/app.test.js` loads the real page scripts into a small fake browser (`tests/helpers/fake-browser.js`) and plays through them.
 

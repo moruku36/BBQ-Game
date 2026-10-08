@@ -1340,7 +1340,7 @@ test("the declared sizes leave the grill most of a 360x640 and a 390x844 screen"
 test("the page is static, loads no external resources and has no heat slider", () => {
   const html = read("index.html");
   const css = read("styles.css");
-  const js = ["core.js", "art.js", "app.js"].map(read).join("\n");
+  const js = ["core.js", "art.js", "i18n.js", "app.js"].map(read).join("\n");
 
   assert.match(html, /<title>BBQ Party<\/title>/);
   assert.doesNotMatch(html, /(?:src|href)="(?:https?:)?\/\//, "no external scripts, styles or fonts");
@@ -1361,7 +1361,7 @@ test("the page is static, loads no external resources and has no heat slider", (
 test("instructions do not depend on where the tray happens to be", () => {
   const html = read("index.html");
   const texts = [html, read("app.js"), read("README.md"), read("README.ja.md")].join("\n");
-  assert.match(html, /<li><b>食材トレイ<\/b>から食材をえらぶ<\/li>/);
+  assert.match(html.replace(/<[^>]*>/g, ""), /食材トレイから食材をえらぶ/);
   assert.doesNotMatch(texts, /下のトレイ|右のトレイ|上のトレイ|左のトレイ|画面下の|画面右の/);
   assert.doesNotMatch(texts, /tray (?:below|at the bottom|on the right)|(?:bottom|right-hand|lower) tray/i);
 });
@@ -1419,6 +1419,7 @@ test("the page asks not to be indexed and ships a strict CSP that its own code o
   assert.deepEqual(html.match(/<script[^>]*>[^<]*<\/script>/g), [
     '<script src="core.js"></script>',
     '<script src="art.js"></script>',
+    '<script src="i18n.js"></script>',
     '<script src="app.js"></script>',
   ]);
   assert.deepEqual(html.match(/<link rel="stylesheet"[^>]*>/g), ['<link rel="stylesheet" href="styles.css">']);

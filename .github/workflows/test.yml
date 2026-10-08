@@ -1,0 +1,32 @@
+name: BBQ language checks
+on:
+  pull_request:
+  push:
+    branches: [master]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Isolated Chromium test tooling
+        run: |
+          npm install --prefix "$RUNNER_TEMP/bbq-browser" --no-save --ignore-scripts playwright@1.56.1
+          "$RUNNER_TEMP/bbq-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Real Chromium in Japanese and English
+        env:
+          NODE_PATH: ${{ runner.temp }}/bbq-browser/node_modules
+          BBQ_ARTIFACT_DIR: ${{ runner.temp }}/bbq-artifacts
+        run: node tools/browser-i18n.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bbq-language-browser
+          path: ${{ runner.temp }}/bbq-artifacts
+          retention-days: 7
