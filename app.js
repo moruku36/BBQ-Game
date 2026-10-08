@@ -1,659 +1,1009 @@
-const canvas = document.getElementById("scene");
-const ctx = canvas.getContext("2d");
+// BBQ Party — browser wiring: DOM, Canvas rendering, sound and lifecycle.
+// All rules live in core.js; this file only reads snapshots and reacts.
+(function () {
+  "use strict";
 
-const heatInput = document.getElementById("heat");
-const toggleButton = document.getElementById("toggleButton");
-const restartButton = document.getElementById("restartButton");
-const ingredientPicker = document.getElementById("ingredientPicker");
-const scoreOutput = document.getElementById("score");
-const servedCountOutput = document.getElementById("servedCount");
-const timeOutput = document.getElementById("timeLeft");
-const heatValueOutput = document.getElementById("heatValue");
-const slotSummary = document.getElementById("slotSummary");
-const logList = document.getElementById("logList");
-const sceneCaption = document.getElementById("sceneCaption");
+  const Core = window.BBQCore;
+  const Art = window.BBQArt;
+  if (!Core || !Art) {
+    return;
+  }
 
-const TOTAL_TIME = 60;
-const SLOT_COUNT = 6;
+  const MAX_PARTICLES = 80;
+  const MAX_POPUPS = 12;
+  const MAX_DPR = 2;
+  const URGENT_MS = 10000;
 
-const INGREDIENTS = {
-  beef: {
-    label: "牛カルビ",
-    shortLabel: "牛",
-    colorRaw: "#b6423a",
-    colorCooked: "#7b341f",
-    colorBurnt: "#221717",
-    accent: "#efc07e",
-    rate: 18,
-    idealMin: 48,
-    idealMax: 74,
-  },
-  corn: {
-    label: "とうもろこし",
-    shortLabel: "とう",
-    colorRaw: "#f3d75d",
-    colorCooked: "#d99a35",
-    colorBurnt: "#634922",
-    accent: "#fff2ab",
-    rate: 12,
-    idealMin: 44,
-    idealMax: 68,
-  },
-  shrimp: {
-    label: "えび串",
-    shortLabel: "えび",
-    colorRaw: "#8f7ea9",
-    colorCooked: "#ff9b71",
-    colorBurnt: "#492927",
-    accent: "#ffd1be",
-    rate: 14,
-    idealMin: 46,
-    idealMax: 70,
-  },
-};
-
-const state = {
-  running: true,
-  ended: false,
-  lastTime: 0,
-  sceneTime: 0,
-  heat: Number(heatInput.value),
-  timeLeft: TOTAL_TIME,
-  selectedType: "beef",
-  score: 0,
-  servedCount: 0,
-  grillSlots: [],
-  sparks: [],
-  logEntries: [],
-};
-
-function random(min, max) {
-  return min + Math.random() * (max - min);
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function addLog(message) {
-  state.logEntries.unshift(message);
-  state.logEntries = state.logEntries.slice(0, 5);
-}
-
-function createFood(type) {
-  return {
-    type,
-    progress: 0,
+  const STAGE_UI = {
+    raw: { badge: "○ 生", say: "まだ生", cls: "is-raw" },
+    "good-early": { badge: "◆ GOOD", say: "GOOD", cls: "is-good" },
+    perfect: { badge: "★ PERFECT", say: "PERFECT", cls: "is-perfect" },
+    "good-late": { badge: "◇ GOOD 注意", say: "GOOD・もうすぐコゲる", cls: "is-late" },
+    burnt: { badge: "✕ コゲ", say: "コゲた", cls: "is-burnt" },
   };
-}
+  const GRADE_POP = {
+    PERFECT: { mark: "★ PERFECT", color: "#57b94f" },
+    GOOD: { mark: "◆ GOOD", color: "#f7c531" },
+    RAW: { mark: "○ 生", color: "#e8e0d0" },
+    BURNT: { mark: "✕ コゲ", color: "#ff8a70" },
+  };
 
-function resizeCanvas() {
-  const ratio = window.devicePixelRatio || 1;
-  const bounds = canvas.getBoundingClientRect();
-  canvas.width = Math.floor(bounds.width * ratio);
-  canvas.height = Math.floor(bounds.height * ratio);
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-}
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    app: $("app"),
+    scene: $("scene"),
+    fx: $("fx"),
+    gameArea: $("gameArea"),
+    hudPlayer: $("hudPlayer"),
+    muteButton: $("muteButton"),
+    muteText: $("muteText"),
+    pauseButton: $("pauseButton"),
+    timeCard: $("timeCard"),
+    hudTime: $("hudTime"),
+    hudTimeBar: $("hudTimeBar"),
+    scoreCard: $("scoreCard"),
+    hudScore: $("hudScore"),
+    hudCombo: $("hudCombo"),
+    hudMult: $("hudMult"),
+    popularIcon: $("popularIcon"),
+    popularName: $("popularName"),
+    popularCountdown: $("popularCountdown"),
+    nextWrap: $("nextWrap"),
+    nextIcon: $("nextIcon"),
+    nextName: $("nextName"),
+    grill: $("grill"),
+    statusLine: $("statusLine"),
+    screenStart: $("screenStart"),
+    startForm: $("startForm"),
+    nicknameInput: $("nicknameInput"),
+    nicknameError: $("nicknameError"),
+    startButton: $("startButton"),
+    challengeInfo: $("challengeInfo"),
+    linkNotice: $("linkNotice"),
+    startBest: $("startBest"),
+    pauseOverlay: $("pauseOverlay"),
+    pauseReason: $("pauseReason"),
+    resumeButton: $("resumeButton"),
+    screenResult: $("screenResult"),
+    resultNickname: $("resultNickname"),
+    resultScore: $("resultScore"),
+    resultNewBest: $("resultNewBest"),
+    resultPerfect: $("resultPerfect"),
+    resultBurned: $("resultBurned"),
+    resultMaxCombo: $("resultMaxCombo"),
+    resultBest: $("resultBest"),
+    resultSeed: $("resultSeed"),
+    retryButton: $("retryButton"),
+    shareButton: $("shareButton"),
+    newChallengeButton: $("newChallengeButton"),
+    titleButton: $("titleButton"),
+    shareStatus: $("shareStatus"),
+    shareFallback: $("shareFallback"),
+    shareFallbackText: $("shareFallbackText"),
+  };
+  const slotEls = [];
+  const badgeEls = [];
+  const plusEls = [];
+  for (let i = 0; i < Core.SLOT_COUNT; i += 1) {
+    slotEls.push($("slot-" + i));
+    badgeEls.push($("slotBadge-" + i));
+    plusEls.push($("slotPlus-" + i));
+  }
+  const ingEls = {};
+  for (const item of Core.INGREDIENTS) {
+    ingEls[item.id] = {
+      button: $("ing-" + item.id),
+      icon: $("ingIcon-" + item.id),
+      name: $("ingName-" + item.id),
+      meta: $("ingMeta-" + item.id),
+      pop: $("ingPop-" + item.id),
+    };
+  }
 
-function slotRects() {
-  const width = canvas.clientWidth;
-  const height = canvas.clientHeight;
-  const grillWidth = Math.min(width * 0.62, 460);
-  const grillHeight = Math.min(height * 0.24, 170);
-  const startX = (width - grillWidth) / 2;
-  const startY = height * 0.54;
-  const gap = 12;
-  const cols = 3;
-  const rows = 2;
-  const slotWidth = (grillWidth - gap * (cols + 1)) / cols;
-  const slotHeight = (grillHeight - gap * (rows + 1)) / rows;
-  const rects = [];
+  const sceneCtx = el.scene.getContext("2d");
+  const fxCtx = el.fx.getContext("2d");
+  const store = Core.createRecordStore(() => window.localStorage);
+  const particles = Core.createParticlePool(MAX_PARTICLES);
+  const popups = Core.createParticlePool(MAX_POPUPS);
+  const timers = new Set();
+  const view = { w: 0, h: 0, dpr: 1, slots: [], grill: null, plate: null };
 
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
-      rects.push({
-        x: startX + gap + col * (slotWidth + gap),
-        y: startY + gap + row * (slotHeight + gap),
-        width: slotWidth,
-        height: slotHeight,
+  let game = null;
+  let seed = 0;
+  let nickname = Core.DEFAULT_NICKNAME;
+  let selected = Core.INGREDIENT_IDS[0];
+  let rafId = 0;
+  let lastFrameTs = 0;
+  let backdrop = null;
+  let resultShown = false;
+  let lastScore = 0;
+  let textCache = {};
+  let slotCache = [];
+  let shownPopular = "";
+  let shownNext = "";
+
+  function now() {
+    return window.performance.now();
+  }
+
+  function reducedMotion() {
+    try {
+      return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function ingredientName(id) {
+    return Core.ingredientById(id).name;
+  }
+
+  // textContent only, and only when the value changed.
+  function setText(key, node, value) {
+    const text = String(value);
+    if (textCache[key] !== text) {
+      textCache[key] = text;
+      node.textContent = text;
+    }
+  }
+
+  function later(fn, ms) {
+    const id = window.setTimeout(() => {
+      timers.delete(id);
+      fn();
+    }, ms);
+    timers.add(id);
+    return id;
+  }
+
+  function clearTimers() {
+    timers.forEach((id) => window.clearTimeout(id));
+    timers.clear();
+  }
+
+  // ---- sound ------------------------------------------------------------
+
+  const audio = (function () {
+    let ctx = null;
+    let muted = false;
+
+    function settle(promise) {
+      if (promise && typeof promise.catch === "function") {
+        promise.catch(() => {});
+      }
+    }
+
+    // Only called from click/submit/keydown handlers, never at load.
+    function unlock() {
+      if (muted) {
+        return;
+      }
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) {
+        return;
+      }
+      try {
+        if (!ctx) {
+          ctx = new Ctor();
+        }
+        if (ctx.state === "suspended") {
+          settle(ctx.resume());
+        }
+      } catch (error) {
+        ctx = null;
+      }
+    }
+
+    function tone(freq, delay, duration, type, volume, slideTo) {
+      const start = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      if (slideTo) {
+        osc.frequency.exponentialRampToValueAtTime(slideTo, start + duration);
+      }
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
+      osc.start(start);
+      osc.stop(start + duration + 0.02);
+    }
+
+    const sounds = {
+      place: () => tone(330, 0, 0.09, "triangle", 0.12, 440),
+      good: () => tone(587, 0, 0.14, "triangle", 0.14),
+      perfect: () => {
+        tone(659, 0, 0.12, "triangle", 0.15);
+        tone(988, 0.09, 0.2, "triangle", 0.15);
+      },
+      raw: () => tone(196, 0, 0.16, "sine", 0.14, 147),
+      burn: () => tone(150, 0, 0.3, "sawtooth", 0.07, 70),
+      phase: () => {
+        tone(523, 0, 0.1, "sine", 0.1);
+        tone(784, 0.1, 0.14, "sine", 0.1);
+      },
+      end: () => {
+        [523, 659, 784, 1047].forEach((freq, i) => tone(freq, i * 0.12, 0.22, "triangle", 0.13));
+      },
+    };
+
+    function play(name) {
+      if (muted || !ctx || ctx.state === "closed") {
+        return;
+      }
+      try {
+        sounds[name]();
+      } catch (error) {
+        // sound is optional
+      }
+    }
+
+    function suspend() {
+      if (ctx && ctx.state === "running") {
+        settle(ctx.suspend());
+      }
+    }
+
+    function resume() {
+      if (!muted && ctx && ctx.state === "suspended") {
+        settle(ctx.resume());
+      }
+    }
+
+    function close() {
+      if (ctx) {
+        try {
+          settle(ctx.close());
+        } catch (error) {
+          // already closed
+        }
+        ctx = null;
+      }
+    }
+
+    function setMuted(value) {
+      muted = value;
+      if (muted) {
+        suspend();
+      }
+    }
+
+    return { unlock, play, suspend, resume, close, setMuted, isMuted: () => muted };
+  })();
+
+  function renderMute() {
+    const muted = audio.isMuted();
+    el.muteButton.setAttribute("aria-pressed", muted ? "true" : "false");
+    el.muteButton.setAttribute("aria-label", muted ? "サウンド: オフ（押すとオン）" : "サウンド: オン（押すとミュート）");
+    el.muteButton.classList.toggle("is-muted", muted);
+    setText("mute", el.muteText, muted ? "音なし" : "音あり");
+  }
+
+  // ---- layout and static art ------------------------------------------------
+
+  function relativeRect(node, origin) {
+    const r = node.getBoundingClientRect();
+    return { x: r.left - origin.left, y: r.top - origin.top, w: r.width, h: r.height };
+  }
+
+  function sizeCanvas(canvas, ctx) {
+    canvas.width = Math.max(1, Math.round(view.w * view.dpr));
+    canvas.height = Math.max(1, Math.round(view.h * view.dpr));
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  }
+
+  function drawIcon(canvas, id, cssSize) {
+    const ctx = canvas.getContext("2d");
+    canvas.width = Math.round(cssSize * view.dpr);
+    canvas.height = Math.round(cssSize * view.dpr);
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    ctx.clearRect(0, 0, cssSize, cssSize);
+    if (id) {
+      Art.drawFood(ctx, id, cssSize / 2, cssSize * 0.46, cssSize * 0.98, { doneness: 1 });
+    }
+  }
+
+  function drawStaticIcons() {
+    for (const item of Core.INGREDIENTS) {
+      drawIcon(ingEls[item.id].icon, item.id, 52);
+    }
+    drawIcon(el.popularIcon, shownPopular, 48);
+    drawIcon(el.nextIcon, shownNext, 28);
+  }
+
+  // Re-measures the DOM and repaints the cached garden. Never touches game state.
+  function layout() {
+    const origin = el.app.getBoundingClientRect();
+    view.w = Math.max(1, origin.width);
+    view.h = Math.max(1, origin.height);
+    view.dpr = Math.min(MAX_DPR, Math.max(1, window.devicePixelRatio || 1));
+    view.slots = slotEls.map((node) => relativeRect(node, origin));
+    view.grill = relativeRect(el.grill, origin);
+    const plate = relativeRect(el.scoreCard, origin);
+    view.plate = { x: plate.x + plate.w / 2, y: plate.y + plate.h / 2 };
+
+    sizeCanvas(el.scene, sceneCtx);
+    sizeCanvas(el.fx, fxCtx);
+
+    if (!backdrop) {
+      backdrop = document.createElement("canvas");
+    }
+    backdrop.width = el.scene.width;
+    backdrop.height = el.scene.height;
+    const ctx = backdrop.getContext("2d");
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    Art.drawBackdrop(ctx, view.w, view.h);
+    Art.drawGrill(ctx, view.grill, view.slots);
+
+    drawStaticIcons();
+  }
+
+  // ---- effects ----------------------------------------------------------------
+
+  function slotCenter(index) {
+    const r = view.slots[index];
+    return { x: r.x + r.w / 2, y: r.y + r.h * 0.46, size: Math.min(r.w, r.h) * 0.78 };
+  }
+
+  function burst(index, color, count) {
+    if (reducedMotion()) {
+      return;
+    }
+    const c = slotCenter(index);
+    for (let i = 0; i < count; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 120;
+      particles.add({
+        kind: "spark",
+        x: c.x,
+        y: c.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 60,
+        life: 380 + Math.random() * 260,
+        size: 2 + Math.random() * 2.5,
+        color,
       });
     }
   }
 
-  return rects;
-}
-
-function donenessLabel(value) {
-  if (value < 28) {
-    return "まだ生です";
-  }
-  if (value < 48) {
-    return "少しずつ焼けています";
-  }
-  if (value < 75) {
-    return "食べごろです";
-  }
-  if (value < 92) {
-    return "焼きすぎ気味です";
-  }
-  return "焦げています";
-}
-
-function updateSummary() {
-  const ingredient = INGREDIENTS[state.selectedType];
-  slotSummary.innerHTML = [
-    `${ingredient.label}を選択中`,
-    `食べごろの目安: ${ingredient.idealMin} - ${ingredient.idealMax}`,
-    "空いている網をクリックで置く / 置いた食材をクリックで回収",
-  ].join("<br>");
-}
-
-function syncIngredientButtons() {
-  const chips = ingredientPicker.querySelectorAll(".ingredient-chip");
-  chips.forEach((button) => {
-    button.classList.toggle("active", button.dataset.type === state.selectedType);
-  });
-}
-
-function renderLog() {
-  logList.innerHTML = "";
-  state.logEntries.forEach((entry) => {
-    const item = document.createElement("li");
-    item.textContent = entry;
-    logList.appendChild(item);
-  });
-}
-
-function renderPanels() {
-  scoreOutput.textContent = String(state.score);
-  servedCountOutput.textContent = String(state.servedCount);
-  timeOutput.textContent = `${Math.max(0, Math.ceil(state.timeLeft))}s`;
-  heatValueOutput.textContent = `${state.heat}%`;
-  toggleButton.textContent = state.running ? "一時停止" : "再開";
-
-  if (state.ended) {
-    sceneCaption.textContent = `終了。スコア ${state.score}、焼けた数 ${state.servedCount}。`;
-  } else {
-    sceneCaption.textContent =
-      "食材を選び、空いている網をクリックして置きます。食べごろでクリック回収です。";
-  }
-
-  updateSummary();
-  renderLog();
-}
-
-function resetGame() {
-  state.running = true;
-  state.ended = false;
-  state.lastTime = 0;
-  state.sceneTime = 0;
-  state.heat = Number(heatInput.value);
-  state.timeLeft = TOTAL_TIME;
-  state.selectedType = "beef";
-  state.score = 0;
-  state.servedCount = 0;
-  state.grillSlots = Array.from({ length: SLOT_COUNT }, () => null);
-  state.sparks = [];
-  state.logEntries = [];
-
-  syncIngredientButtons();
-  addLog("BBQスタート。空いている網をクリックして焼き始めましょう。");
-  renderPanels();
-}
-
-function scoreFood(food) {
-  const ingredient = INGREDIENTS[food.type];
-  const progress = food.progress;
-
-  if (progress >= ingredient.idealMin && progress <= ingredient.idealMax) {
-    return 10;
-  }
-  if (progress < ingredient.idealMin) {
-    return 4;
-  }
-  if (progress < 92) {
-    return 6;
-  }
-  return 1;
-}
-
-function collectFood(index) {
-  const food = state.grillSlots[index];
-  if (!food) {
-    return;
-  }
-
-  const ingredient = INGREDIENTS[food.type];
-  const progress = Math.round(food.progress);
-  const points = scoreFood(food);
-
-  state.score += points;
-  state.servedCount += 1;
-  state.grillSlots[index] = null;
-
-  if (progress >= ingredient.idealMin && progress <= ingredient.idealMax) {
-    addLog(`${ingredient.label}がちょうどよく焼けました。+${points}点`);
-    addSparkBurst();
-  } else if (progress < ingredient.idealMin) {
-    addLog(`${ingredient.label}を少し早めに回収しました。+${points}点`);
-  } else if (progress < 92) {
-    addLog(`${ingredient.label}は少し焼きすぎでした。+${points}点`);
-  } else {
-    addLog(`${ingredient.label}が焦げましたが回収しました。+${points}点`);
-  }
-
-  renderPanels();
-}
-
-function placeFood(index) {
-  if (state.grillSlots[index]) {
-    return;
-  }
-
-  const ingredient = INGREDIENTS[state.selectedType];
-  state.grillSlots[index] = createFood(state.selectedType);
-  addLog(`${ingredient.label}を網に置きました。`);
-  renderPanels();
-}
-
-function updateGrill(delta) {
-  const fireBoost = state.heat / 100;
-
-  for (const food of state.grillSlots) {
-    if (!food) {
-      continue;
+  function puff(index, dark, count) {
+    if (reducedMotion()) {
+      return;
     }
-
-    const ingredient = INGREDIENTS[food.type];
-    food.progress += ingredient.rate * fireBoost * delta;
-    food.progress = clamp(food.progress, 0, 110);
-  }
-}
-
-function addSparkBurst() {
-  const width = canvas.clientWidth;
-  const height = canvas.clientHeight;
-  for (let i = 0; i < 14; i += 1) {
-    state.sparks.push({
-      x: width * 0.5 + random(-70, 70),
-      y: height * 0.6 + random(-20, 20),
-      vx: random(-32, 32),
-      vy: random(-100, -25),
-      life: random(0.5, 0.9),
-      size: random(2, 4),
-    });
-  }
-}
-
-function updateSparks(delta) {
-  state.sparks = state.sparks
-    .map((spark) => ({
-      ...spark,
-      x: spark.x + spark.vx * delta,
-      y: spark.y + spark.vy * delta,
-      vy: spark.vy + 120 * delta,
-      life: spark.life - delta,
-    }))
-    .filter((spark) => spark.life > 0);
-}
-
-function finishGame() {
-  state.running = false;
-  state.ended = true;
-  addLog("BBQ終了。また焼きたくなったら最初から遊べます。");
-  renderPanels();
-}
-
-function update(delta) {
-  updateSparks(delta);
-
-  if (!state.running || state.ended) {
-    return;
+    const c = slotCenter(index);
+    for (let i = 0; i < count; i += 1) {
+      particles.add({
+        kind: dark ? "smoke" : "steam",
+        x: c.x + (Math.random() - 0.5) * c.size * 0.5,
+        y: c.y - c.size * 0.1,
+        vx: (Math.random() - 0.5) * 16,
+        vy: -(26 + Math.random() * 22),
+        life: 700 + Math.random() * 500,
+        size: 5 + Math.random() * 5,
+      });
+    }
   }
 
-  state.timeLeft -= delta;
-  updateGrill(delta);
-
-  if (Math.random() < delta * (0.8 + state.heat / 160)) {
-    state.sparks.push({
-      x: canvas.clientWidth * 0.5 + random(-90, 90),
-      y: canvas.clientHeight * 0.67 + random(-10, 10),
-      vx: random(-18, 18),
-      vy: random(-80, -20),
-      life: random(0.4, 0.8),
-      size: random(1, 3),
+  function popup(index, grade, text, sub) {
+    const c = slotCenter(index);
+    popups.add({
+      kind: "pop",
+      x: Math.min(view.w - 70, Math.max(70, c.x)),
+      y: c.y - c.size * 0.35,
+      life: 950,
+      text,
+      sub: sub || "",
+      color: GRADE_POP[grade].color,
     });
   }
 
-  if (state.timeLeft <= 0) {
-    finishGame();
-  }
-}
-
-function foodColor(food) {
-  const ingredient = INGREDIENTS[food.type];
-
-  if (food.progress > 92) {
-    return ingredient.colorBurnt;
-  }
-  if (food.progress > 48) {
-    return ingredient.colorCooked;
-  }
-  return ingredient.colorRaw;
-}
-
-function drawSky(width, height) {
-  const sunset = ctx.createLinearGradient(0, 0, 0, height);
-  sunset.addColorStop(0, "#fff2c6");
-  sunset.addColorStop(0.34, "#ffb46f");
-  sunset.addColorStop(0.68, "#cb6442");
-  sunset.addColorStop(1, "#47231d");
-  ctx.fillStyle = sunset;
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.fillStyle = "rgba(255, 245, 223, 0.78)";
-  ctx.beginPath();
-  ctx.arc(width * 0.78, height * 0.2, 54, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawGround(width, height) {
-  ctx.fillStyle = "#6f4f2a";
-  ctx.fillRect(0, height * 0.74, width, height * 0.26);
-
-  ctx.fillStyle = "#55703c";
-  ctx.beginPath();
-  ctx.moveTo(0, height * 0.68);
-  ctx.quadraticCurveTo(width * 0.2, height * 0.62, width * 0.38, height * 0.7);
-  ctx.quadraticCurveTo(width * 0.58, height * 0.78, width, height * 0.66);
-  ctx.lineTo(width, height * 0.78);
-  ctx.lineTo(0, height * 0.8);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function drawBanner(width, height) {
-  const sway = Math.sin(state.sceneTime * 0.0018) * 6;
-  ctx.strokeStyle = "rgba(72, 30, 16, 0.65)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(width * 0.14, height * 0.18);
-  ctx.lineTo(width * 0.86, height * 0.16);
-  ctx.stroke();
-
-  ctx.fillStyle = "#fff1cf";
-  ctx.beginPath();
-  ctx.moveTo(width * 0.3, height * 0.18 + sway);
-  ctx.lineTo(width * 0.7, height * 0.16 - sway);
-  ctx.lineTo(width * 0.66, height * 0.27 - sway);
-  ctx.lineTo(width * 0.34, height * 0.29 + sway);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#823419";
-  ctx.font = "700 24px 'Zen Maru Gothic'";
-  ctx.textAlign = "center";
-  ctx.fillText("SUNSET BBQ", width * 0.5, height * 0.23);
-}
-
-function drawTable(width, height) {
-  ctx.fillStyle = "#7f4128";
-  ctx.fillRect(width * 0.11, height * 0.72, width * 0.78, height * 0.04);
-  ctx.fillStyle = "#4d2519";
-  ctx.fillRect(width * 0.18, height * 0.76, width * 0.04, height * 0.15);
-  ctx.fillRect(width * 0.78, height * 0.76, width * 0.04, height * 0.15);
-}
-
-function drawGuests(width, height) {
-  const baseline = height * 0.48;
-  const positions = [0.16, 0.3, 0.7, 0.84];
-  positions.forEach((position, index) => {
-    const cheer = Math.sin(state.sceneTime * 0.003 + index) * 3;
-    const x = width * position;
-    ctx.fillStyle = "#31211f";
-    ctx.beginPath();
-    ctx.arc(x, baseline - 50 + cheer, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = index % 2 === 0 ? "#ffd26f" : "#9dd0ff";
-    ctx.beginPath();
-    ctx.roundRect(x - 20, baseline - 30, 40, 52, 16);
-    ctx.fill();
-  });
-}
-
-function drawGrill(width, height, rects) {
-  const grillBody = {
-    x: width * 0.2,
-    y: height * 0.5,
-    width: width * 0.6,
-    height: height * 0.24,
-  };
-
-  ctx.fillStyle = "#2b2220";
-  ctx.beginPath();
-  ctx.roundRect(grillBody.x, grillBody.y, grillBody.width, grillBody.height, 28);
-  ctx.fill();
-
-  const ember = ctx.createRadialGradient(width * 0.5, height * 0.66, 10, width * 0.5, height * 0.66, 180);
-  ember.addColorStop(0, `rgba(255, 208, 96, ${0.3 + state.heat / 180})`);
-  ember.addColorStop(0.45, `rgba(255, 120, 60, ${0.2 + state.heat / 240})`);
-  ember.addColorStop(1, "rgba(78, 28, 24, 0)");
-  ctx.fillStyle = ember;
-  ctx.fillRect(grillBody.x, grillBody.y, grillBody.width, grillBody.height);
-
-  ctx.strokeStyle = "#b9babd";
-  ctx.lineWidth = 4;
-  for (let i = 0; i < 7; i += 1) {
-    const x = grillBody.x + 24 + i * ((grillBody.width - 48) / 6);
-    ctx.beginPath();
-    ctx.moveTo(x, grillBody.y + 18);
-    ctx.lineTo(x, grillBody.y + grillBody.height - 18);
-    ctx.stroke();
+  function flyToPlate(index, id, doneness) {
+    if (reducedMotion()) {
+      return;
+    }
+    const c = slotCenter(index);
+    popups.add({
+      kind: "fly",
+      x: c.x,
+      y: c.y,
+      toX: view.plate.x,
+      toY: view.plate.y,
+      life: 420,
+      size: c.size,
+      id,
+      doneness,
+    });
   }
 
-  rects.forEach((rect) => {
-    ctx.strokeStyle = "rgba(255, 248, 239, 0.24)";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-
-    ctx.fillStyle = "rgba(255, 248, 239, 0.08)";
-    ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-  });
-}
-
-function drawIngredient(rect, food) {
-  const ingredient = INGREDIENTS[food.type];
-  const color = foodColor(food);
-  const centerX = rect.x + rect.width / 2;
-  const centerY = rect.y + rect.height / 2;
-
-  ctx.save();
-  ctx.translate(centerX, centerY);
-
-  if (food.type === "beef") {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.roundRect(-rect.width * 0.26, -rect.height * 0.2, rect.width * 0.52, rect.height * 0.4, 18);
-    ctx.fill();
-    ctx.strokeStyle = ingredient.accent;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-rect.width * 0.16, 0);
-    ctx.lineTo(rect.width * 0.16, 0);
-    ctx.stroke();
-  } else if (food.type === "corn") {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.roundRect(-rect.width * 0.22, -rect.height * 0.18, rect.width * 0.44, rect.height * 0.36, 16);
-    ctx.fill();
-    ctx.fillStyle = ingredient.accent;
-    for (let row = -1; row <= 1; row += 1) {
-      for (let col = -3; col <= 3; col += 1) {
-        ctx.beginPath();
-        ctx.arc(col * 8, row * 9, 2.3, 0, Math.PI * 2);
-        ctx.fill();
+  function emitSteam(snap, dtMs) {
+    if (!snap || snap.status !== "running" || reducedMotion()) {
+      return;
+    }
+    snap.slots.forEach((food, index) => {
+      if (!food || food.stage === "raw") {
+        return;
       }
-    }
-  } else {
-    ctx.strokeStyle = "#cfb497";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(-rect.width * 0.18, rect.height * 0.22);
-    ctx.lineTo(rect.width * 0.18, -rect.height * 0.22);
-    ctx.stroke();
-    ctx.fillStyle = color;
-    for (let i = -1; i <= 1; i += 1) {
+      const perSecond = food.stage === "burnt" ? 2.4 : 2.8;
+      if (Math.random() < (perSecond * dtMs) / 1000) {
+        puff(index, food.stage === "burnt", 1);
+      }
+    });
+  }
+
+  function stepEffects(dtMs) {
+    const dt = dtMs / 1000;
+    particles.update(dtMs, (p) => {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.kind === "spark") {
+        p.vy += 320 * dt;
+      } else {
+        p.size += 9 * dt;
+      }
+    });
+    popups.update(dtMs);
+  }
+
+  function drawEffects() {
+    const ctx = fxCtx;
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    ctx.clearRect(0, 0, view.w, view.h);
+    const still = reducedMotion();
+
+    for (const p of particles.items) {
+      const k = p.age / p.life;
+      if (p.kind === "spark") {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = 1 - k;
+      } else {
+        ctx.fillStyle = p.kind === "smoke" ? "#3a3432" : "#fffdf5";
+        ctx.globalAlpha = (1 - k) * (p.kind === "smoke" ? 0.42 : 0.34);
+      }
       ctx.beginPath();
-      ctx.arc(i * 12, i % 2 === 0 ? -4 : 6, 9, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
     }
-  }
+    ctx.globalAlpha = 1;
 
-  ctx.fillStyle = "rgba(255, 248, 239, 0.92)";
-  ctx.font = "700 12px 'Zen Maru Gothic'";
-  ctx.textAlign = "center";
-  ctx.fillText(`${Math.round(food.progress)}`, 0, rect.height * 0.36);
-  ctx.restore();
-}
-
-function drawSparks() {
-  state.sparks.forEach((spark) => {
-    ctx.fillStyle = `rgba(255, 217, 118, ${clamp(spark.life, 0, 1)})`;
-    ctx.beginPath();
-    ctx.arc(spark.x, spark.y, spark.size, 0, Math.PI * 2);
-    ctx.fill();
-  });
-}
-
-function drawOverlay(width, height) {
-  if (!state.ended) {
-    return;
-  }
-
-  ctx.fillStyle = "rgba(28, 14, 12, 0.56)";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.fillStyle = "#fff6e8";
-  ctx.textAlign = "center";
-  ctx.font = "900 34px 'Zen Maru Gothic'";
-  ctx.fillText("BBQフィニッシュ", width / 2, height * 0.34);
-  ctx.font = "500 18px 'Zen Maru Gothic'";
-  ctx.fillText(`スコア ${state.score} / 焼けた数 ${state.servedCount}`, width / 2, height * 0.4);
-  ctx.fillText("最初から遊ぶでもう一度始められます。", width / 2, height * 0.45);
-}
-
-function drawScene() {
-  const width = canvas.clientWidth;
-  const height = canvas.clientHeight;
-  const rects = slotRects();
-
-  drawSky(width, height);
-  drawGround(width, height);
-  drawBanner(width, height);
-  drawGuests(width, height);
-  drawTable(width, height);
-  drawGrill(width, height, rects);
-
-  rects.forEach((rect, index) => {
-    const food = state.grillSlots[index];
-    if (food) {
-      drawIngredient(rect, food);
+    for (const p of popups.items) {
+      const k = p.age / p.life;
+      if (p.kind === "fly") {
+        const ease = k * k * (3 - 2 * k);
+        const x = p.x + (p.toX - p.x) * ease;
+        const y = p.y + (p.toY - p.y) * ease - Math.sin(Math.PI * k) * 46;
+        ctx.globalAlpha = k > 0.85 ? (1 - k) / 0.15 : 1;
+        Art.drawFood(ctx, p.id, x, y, p.size * (1 - 0.6 * ease), { doneness: p.doneness, shadow: false });
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      const y = p.y - (still ? 0 : 34 * k);
+      ctx.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      ctx.font = "900 19px system-ui, sans-serif";
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = "#2b2623";
+      ctx.strokeText(p.text, p.x, y);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, p.x, y);
+      if (p.sub) {
+        ctx.font = "800 13px system-ui, sans-serif";
+        ctx.lineWidth = 4;
+        ctx.strokeText(p.sub, p.x, y + 19);
+        ctx.fillStyle = "#fff6e0";
+        ctx.fillText(p.sub, p.x, y + 19);
+      }
+      ctx.globalAlpha = 1;
     }
-  });
-
-  drawSparks();
-  drawOverlay(width, height);
-}
-
-function render(time) {
-  if (!state.lastTime) {
-    state.lastTime = time;
   }
 
-  const delta = Math.min((time - state.lastTime) / 1000, 0.033);
-  state.lastTime = time;
-  state.sceneTime = time;
+  // ---- drawing ------------------------------------------------------------------
 
-  update(delta);
-  drawScene();
-
-  if (Math.floor(time / 250) !== Math.floor((time - 16) / 250)) {
-    renderPanels();
+  function drawScene(snap, ts) {
+    const ctx = sceneCtx;
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    ctx.clearRect(0, 0, view.w, view.h);
+    if (backdrop) {
+      ctx.drawImage(backdrop, 0, 0, view.w, view.h);
+    }
+    if (!view.grill) {
+      return;
+    }
+    Art.drawEmberGlow(ctx, view.grill, reducedMotion() ? 0.5 : 0.5 + 0.5 * Math.sin(ts / 280));
+    if (!snap) {
+      return;
+    }
+    snap.slots.forEach((food, index) => {
+      if (!food) {
+        return;
+      }
+      const rect = view.slots[index];
+      const c = slotCenter(index);
+      const item = Core.ingredientById(food.id);
+      Art.drawFood(ctx, food.id, c.x, c.y, c.size, { doneness: food.ageMs / item.idealMs, burnt: food.burnt });
+      const barW = Math.max(24, rect.w - 20);
+      Art.drawTimingBar(ctx, rect.x + (rect.w - barW) / 2, rect.y + rect.h - 17, barW, 8, Core.cookWindows(item.idealMs), food.ageMs);
+    });
   }
 
-  requestAnimationFrame(render);
-}
+  // ---- DOM updates ------------------------------------------------------------------
 
-function canvasPoint(event) {
-  const bounds = canvas.getBoundingClientRect();
-  return {
-    x: event.clientX - bounds.left,
-    y: event.clientY - bounds.top,
-  };
-}
-
-function handleCanvasClick(event) {
-  if (state.ended || !state.running) {
-    return;
+  function updateSlots(snap) {
+    for (let i = 0; i < Core.SLOT_COUNT; i += 1) {
+      const food = snap ? snap.slots[i] : null;
+      const key = food ? food.id + "|" + food.stage : "empty|" + selected;
+      if (slotCache[i] === key) {
+        continue;
+      }
+      slotCache[i] = key;
+      const slot = slotEls[i];
+      if (!food) {
+        slot.className = "slot is-empty";
+        slot.setAttribute("aria-label", "網" + (i + 1) + ": 空き。押すと" + ingredientName(selected) + "を置く");
+        badgeEls[i].hidden = true;
+        plusEls[i].hidden = false;
+        continue;
+      }
+      const ui = STAGE_UI[food.stage];
+      slot.className = "slot " + ui.cls;
+      slot.setAttribute("aria-label", "網" + (i + 1) + ": " + ingredientName(food.id) + "・" + ui.say + "。押すと回収");
+      badgeEls[i].textContent = ui.badge;
+      badgeEls[i].hidden = false;
+      plusEls[i].hidden = true;
+    }
   }
 
-  const point = canvasPoint(event);
-  const rects = slotRects();
-  const hitIndex = rects.findIndex(
-    (rect) =>
-      point.x >= rect.x &&
-      point.x <= rect.x + rect.width &&
-      point.y >= rect.y &&
-      point.y <= rect.y + rect.height
-  );
-
-  if (hitIndex === -1) {
-    return;
+  function updateTray(popularId) {
+    for (const item of Core.INGREDIENTS) {
+      const parts = ingEls[item.id];
+      const isSelected = item.id === selected;
+      parts.button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      parts.button.classList.toggle("is-selected", isSelected);
+      parts.button.classList.toggle("is-popular", item.id === popularId);
+      parts.pop.hidden = item.id !== popularId;
+    }
   }
 
-  if (state.grillSlots[hitIndex]) {
-    collectFood(hitIndex);
-  } else {
-    placeFood(hitIndex);
+  function updateHud(snap) {
+    const remainingMs = snap ? snap.remainingMs : Core.GAME_MS;
+    setText("time", el.hudTime, Math.ceil(remainingMs / 1000));
+    const fill = (remainingMs / Core.GAME_MS).toFixed(3);
+    if (textCache.timeFill !== fill) {
+      textCache.timeFill = fill;
+      el.hudTimeBar.style.transform = "scaleX(" + fill + ")";
+    }
+    el.timeCard.classList.toggle("is-urgent", Boolean(snap) && snap.status !== "ready" && remainingMs <= URGENT_MS);
+    setText("score", el.hudScore, snap ? snap.score : 0);
+    setText("combo", el.hudCombo, snap ? snap.combo : 0);
+    setText("mult", el.hudMult, "x" + ((snap ? snap.multiplierTenths : 10) / 10).toFixed(1));
+
+    const popular = snap ? snap.popular : Core.popularAt(Core.buildSchedule(seed), 0);
+    const next = popular.showNext ? popular.next : "";
+    setText("popularName", el.popularName, ingredientName(popular.current));
+    setText("popularCountdown", el.popularCountdown, "あと" + Math.ceil(popular.msToNext / 1000) + "秒");
+    setText("nextName", el.nextName, next ? ingredientName(next) : "");
+    el.nextWrap.classList.toggle("is-visible", Boolean(next));
+    if (shownPopular !== popular.current) {
+      shownPopular = popular.current;
+      drawIcon(el.popularIcon, shownPopular, 48);
+      updateTray(shownPopular);
+    }
+    if (shownNext !== next) {
+      shownNext = next;
+      drawIcon(el.nextIcon, shownNext, 28);
+    }
   }
-}
 
-ingredientPicker.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-type]");
-  if (!button) {
-    return;
+  function say(message) {
+    textCache.status = message;
+    el.statusLine.textContent = message;
   }
 
-  state.selectedType = button.dataset.type;
-  syncIngredientButtons();
-  renderPanels();
-});
+  // ---- frame loop -------------------------------------------------------------------
 
-heatInput.addEventListener("input", (event) => {
-  state.heat = Number(event.target.value);
-  renderPanels();
-});
-
-toggleButton.addEventListener("click", () => {
-  if (state.ended) {
-    return;
+  function stopLoop() {
+    if (rafId) {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
   }
 
-  state.running = !state.running;
-  renderPanels();
-});
+  function startLoop() {
+    if (!rafId && game && game.status === "running") {
+      rafId = window.requestAnimationFrame(frame);
+    }
+  }
 
-restartButton.addEventListener("click", () => {
-  resetGame();
-});
+  function frame(ts) {
+    rafId = 0;
+    pump(ts);
+    startLoop();
+  }
 
-canvas.addEventListener("click", handleCanvasClick);
+  function handleEvent(event) {
+    if (event.type === "burn") {
+      puff(event.slot, true, 6);
+      popup(event.slot, "BURNT", GRADE_POP.BURNT.mark, "コンボ終了");
+      audio.play("burn");
+      say(ingredientName(event.ingredient) + "がコゲた…コンボ終了");
+    } else if (event.type === "phase") {
+      audio.play("phase");
+      say("人気が" + ingredientName(event.ingredient) + "に変わった！");
+    }
+  }
 
-window.addEventListener("resize", () => {
-  resizeCanvas();
-  renderPanels();
-});
+  // Syncs the core to the clock, reacts to what happened, then repaints.
+  // Frame timing only drives the visual effects (dt), never the rules.
+  function pump(ts) {
+    const dtMs = lastFrameTs ? Math.min(100, Math.max(0, ts - lastFrameTs)) : 0;
+    lastFrameTs = ts;
+    let snap = null;
+    let ended = false;
+    if (game) {
+      snap = game.snapshot();
+      for (const event of game.drainEvents()) {
+        if (event.type === "end") {
+          ended = true;
+        } else {
+          handleEvent(event);
+        }
+      }
+    }
+    updateHud(snap);
+    updateSlots(snap);
+    emitSteam(snap, dtMs);
+    stepEffects(dtMs);
+    drawScene(snap, ts);
+    drawEffects();
+    if (ended) {
+      finishGame();
+    }
+  }
 
-resizeCanvas();
-resetGame();
-requestAnimationFrame(render);
+  // ---- screens ----------------------------------------------------------------------
+
+  function setGameInert(inert) {
+    el.gameArea.inert = inert;
+    if (inert) {
+      el.gameArea.setAttribute("aria-hidden", "true");
+    } else {
+      el.gameArea.removeAttribute("aria-hidden");
+    }
+  }
+
+  function showScreen(name) {
+    el.screenStart.hidden = name !== "start";
+    el.pauseOverlay.hidden = name !== "pause";
+    el.screenResult.hidden = name !== "result";
+    setGameInert(name !== "game");
+  }
+
+  function hideShareFallback() {
+    el.shareFallback.hidden = true;
+    el.shareFallbackText.value = "";
+    setText("shareStatus", el.shareStatus, "");
+  }
+
+  // Drops everything that belongs to the previous round.
+  function teardown() {
+    stopLoop();
+    clearTimers();
+    particles.clear();
+    popups.clear();
+    if (game) {
+      game.dispose();
+      game = null;
+    }
+    resultShown = false;
+    lastFrameTs = 0;
+    slotCache = [];
+    shownPopular = "";
+    shownNext = "";
+    hideShareFallback();
+    say("");
+  }
+
+  function renderChallengeInfo() {
+    setText("challengeInfo", el.challengeInfo, "チャレンジ No. " + seed);
+  }
+
+  function syncHash() {
+    try {
+      window.history.replaceState(null, "", Core.buildChallengeHash(seed));
+    } catch (error) {
+      // file:// pages or sandboxed frames may refuse; the share link still works
+    }
+  }
+
+  function newSeed() {
+    return Core.randomSeed(() => {
+      const box = new Uint32Array(1);
+      window.crypto.getRandomValues(box);
+      return box[0];
+    });
+  }
+
+  function showStart() {
+    teardown();
+    const record = store.load();
+    setText("startBest", el.startBest, "この端末のベスト: " + record.bestScore + "点");
+    renderChallengeInfo();
+    showScreen("start");
+    pump(now());
+  }
+
+  function startGame() {
+    teardown();
+    selected = Core.INGREDIENT_IDS[0];
+    game = Core.createGame({ seed, now });
+    game.select(selected);
+    setText("player", el.hudPlayer, nickname);
+    renderChallengeInfo();
+    syncHash();
+    showScreen("game");
+    layout();
+    game.start();
+    say("食材をえらんで、空いた網をタップ！");
+    pump(now());
+    startLoop();
+    slotEls[0].focus();
+  }
+
+  function finishGame() {
+    if (!game || resultShown) {
+      return;
+    }
+    resultShown = true;
+    stopLoop();
+    clearTimers();
+    particles.clear();
+    popups.clear();
+    drawEffects();
+
+    const results = game.results();
+    lastScore = results.score;
+    const best = store.saveBest(results.score);
+    setText("resultNickname", el.resultNickname, nickname);
+    setText("resultScore", el.resultScore, results.score);
+    setText("resultPerfect", el.resultPerfect, results.perfectCount);
+    setText("resultBurned", el.resultBurned, results.burnedCount);
+    setText("resultMaxCombo", el.resultMaxCombo, results.maxCombo);
+    setText("resultBest", el.resultBest, "この端末のベスト: " + best.bestScore + "点");
+    setText("resultSeed", el.resultSeed, "チャレンジ No. " + seed);
+    el.resultNewBest.hidden = !best.isNewBest;
+    say("タイムアップ！スコア " + results.score + "点");
+    audio.play("end");
+    showScreen("result");
+    el.retryButton.focus();
+  }
+
+  function pauseGame(reason) {
+    if (!game) {
+      return;
+    }
+    const paused = game.pause();
+    pump(now());
+    if (!paused) {
+      return;
+    }
+    stopLoop();
+    audio.suspend();
+    setText(
+      "pauseReason",
+      el.pauseReason,
+      reason === "hidden" ? "画面をはなれたので止めました。タイマーも食材も止まっています。" : "タイマーも食材も止まっています。"
+    );
+    showScreen("pause");
+    el.resumeButton.focus();
+  }
+
+  // Only ever called from the resume button: returning to the tab is not enough.
+  function resumeGame() {
+    if (!game || !game.resume()) {
+      return;
+    }
+    audio.unlock();
+    audio.resume();
+    showScreen("game");
+    lastFrameTs = 0;
+    pump(now());
+    startLoop();
+    slotEls[0].focus();
+  }
+
+  // ---- input ------------------------------------------------------------------------
+
+  function selectIngredient(id) {
+    if (!Core.ingredientById(id)) {
+      return;
+    }
+    selected = id;
+    if (game) {
+      game.select(id);
+    }
+    slotCache = [];
+    updateTray(shownPopular);
+    if (game && game.status === "running") {
+      say(ingredientName(id) + "をえらんだ");
+    }
+    pump(now());
+  }
+
+  function onSlot(index) {
+    if (!game) {
+      return;
+    }
+    audio.unlock();
+    const result = game.tapSlot(index);
+    if (result.type === "placed") {
+      audio.play("place");
+      say(ingredientName(result.ingredient) + "を置いた");
+    } else if (result.type === "collected") {
+      const name = ingredientName(result.ingredient);
+      const pop = GRADE_POP[result.grade];
+      if (result.grade === "PERFECT" || result.grade === "GOOD") {
+        const sub = "x" + (result.multiplierTenths / 10).toFixed(1) + (result.bonus ? " ・人気+" + result.bonus : "");
+        popup(index, result.grade, pop.mark + " +" + result.points, sub);
+        flyToPlate(index, result.ingredient, result.ageMs / Core.ingredientById(result.ingredient).idealMs);
+        burst(index, pop.color, result.grade === "PERFECT" ? 12 : 5);
+        audio.play(result.grade === "PERFECT" ? "perfect" : "good");
+        say(name + " " + result.grade + "！ +" + result.points + "点");
+      } else if (result.grade === "RAW") {
+        popup(index, "RAW", pop.mark + " 0", "コンボ終了");
+        audio.play("raw");
+        say(name + "はまだ生だった… 0点");
+      } else {
+        popup(index, "BURNT", pop.mark + " 0", "");
+        say("コゲた" + name + "を片づけた");
+      }
+    }
+    pump(now());
+  }
+
+  function onStartSubmit(event) {
+    event.preventDefault();
+    const result = Core.normalizeNickname(el.nicknameInput.value);
+    if (!result.ok) {
+      el.nicknameError.textContent = "ニックネームは" + Core.NICKNAME_MAX + "文字までにしてください。";
+      el.nicknameError.hidden = false;
+      el.nicknameInput.setAttribute("aria-invalid", "true");
+      el.nicknameInput.focus();
+      return;
+    }
+    clearNicknameError();
+    nickname = result.value;
+    store.saveNickname(result.isGuest ? "" : result.value);
+    audio.unlock();
+    startGame();
+  }
+
+  function clearNicknameError() {
+    el.nicknameError.hidden = true;
+    el.nicknameError.textContent = "";
+    el.nicknameInput.removeAttribute("aria-invalid");
+  }
+
+  function onShare() {
+    const url = Core.buildChallengeUrl(window.location.href, seed);
+    const text = "BBQ Party で" + lastScore + "点！同じチャレンジで勝負しよう";
+    hideShareFallback();
+    Core.shareChallenge({ nav: window.navigator, title: "BBQ Party", text, url }).then((outcome) => {
+      if (outcome.method === "clipboard") {
+        setText("shareStatus", el.shareStatus, "リンクをコピーしました");
+        later(() => setText("shareStatus", el.shareStatus, ""), 4000);
+      } else if (outcome.method === "fallback") {
+        el.shareFallbackText.value = url;
+        el.shareFallback.hidden = false;
+        el.shareFallbackText.focus();
+        el.shareFallbackText.select();
+      }
+    });
+  }
+
+  function onKeydown(event) {
+    if (!game || game.status !== "running" || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    const index = ["1", "2", "3", "4"].indexOf(event.key);
+    if (index !== -1) {
+      selectIngredient(Core.INGREDIENT_IDS[index]);
+    } else if (event.key === "Escape" || event.key === "p" || event.key === "P") {
+      pauseGame("manual");
+    }
+  }
+
+  function bind() {
+    el.startForm.addEventListener("submit", onStartSubmit);
+    el.nicknameInput.addEventListener("input", clearNicknameError);
+    slotEls.forEach((slot, index) => slot.addEventListener("click", () => onSlot(index)));
+    for (const item of Core.INGREDIENTS) {
+      ingEls[item.id].button.addEventListener("click", () => selectIngredient(item.id));
+    }
+    el.muteButton.addEventListener("click", () => {
+      const muted = !audio.isMuted();
+      audio.setMuted(muted);
+      store.saveMuted(muted);
+      if (!muted && game && game.status === "running") {
+        audio.unlock();
+        audio.resume();
+      }
+      renderMute();
+    });
+    el.pauseButton.addEventListener("click", () => pauseGame("manual"));
+    el.resumeButton.addEventListener("click", resumeGame);
+    el.retryButton.addEventListener("click", () => {
+      audio.unlock();
+      startGame();
+    });
+    el.newChallengeButton.addEventListener("click", () => {
+      seed = newSeed();
+      el.linkNotice.hidden = true;
+      audio.unlock();
+      startGame();
+    });
+    el.titleButton.addEventListener("click", () => {
+      showStart();
+      el.nicknameInput.focus();
+    });
+    el.shareButton.addEventListener("click", onShare);
+
+    document.addEventListener("keydown", onKeydown);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden || document.visibilityState === "hidden") {
+        pauseGame("hidden");
+      }
+    });
+    window.addEventListener("pagehide", () => {
+      pauseGame("hidden");
+      audio.close();
+    });
+    const relayout = () => {
+      layout();
+      pump(now());
+    };
+    window.addEventListener("resize", relayout);
+    window.addEventListener("orientationchange", relayout);
+    if (typeof window.ResizeObserver === "function") {
+      new window.ResizeObserver(relayout).observe(el.grill);
+    }
+  }
+
+  function init() {
+    for (const item of Core.INGREDIENTS) {
+      ingEls[item.id].name.textContent = item.name;
+      ingEls[item.id].meta.textContent = (item.idealMs / 1000).toFixed(1) + "秒・" + item.base + "点";
+    }
+
+    const record = store.load();
+    audio.setMuted(record.muted);
+    renderMute();
+    el.nicknameInput.value = record.nickname;
+
+    const link = Core.parseChallengeHash(window.location.hash);
+    if (link.ok) {
+      seed = link.seed;
+      el.linkNotice.textContent = "（リンクのチャレンジ）";
+      el.linkNotice.hidden = false;
+    } else {
+      seed = newSeed();
+      if (link.reason !== "empty") {
+        el.linkNotice.textContent = "（リンクが正しくないため、新しいチャレンジにしました）";
+        el.linkNotice.hidden = false;
+      }
+    }
+
+    bind();
+    layout();
+    showStart();
+  }
+
+  init();
+})();
