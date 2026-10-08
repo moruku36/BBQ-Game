@@ -31,6 +31,7 @@ create table if not exists bbq_private.rates (
 create index if not exists bbq_rates_expiry on bbq_private.rates(expires_at);
 create index if not exists bbq_runs_issued on bbq_private.runs(issued_at);
 create index if not exists bbq_receipts_expiry on bbq_private.receipts(expires_at);
+create index if not exists bbq_receipt_action_expiry on bbq_private.receipts(actions_expires_at) where actions<>'[]'::jsonb;
 alter table bbq_private.runs enable row level security;
 alter table bbq_private.receipts enable row level security;
 alter table bbq_private.scores enable row level security;
@@ -39,7 +40,7 @@ revoke all on all tables in schema bbq_private from public, anon, authenticated;
 grant select, insert, update, delete on all tables in schema bbq_private to service_role;
 
 create or replace function public.bbq_dispatch(p_action text, p_hash text, p_payload jsonb)
-returns jsonb language plpgsql security invoker set search_path=pg_catalog as $$
+returns jsonb language plpgsql security invoker set search_path=pg_catalog set lock_timeout='2s' as $
 declare
   ts timestamptz := clock_timestamp();
   minute bigint := floor(extract(epoch from ts)/60);
@@ -48,7 +49,6 @@ declare
   keys text[];
   caps int[];
   windows int[];
-  bucket text;
   n int;
   i int;
   allowed boolean := true;

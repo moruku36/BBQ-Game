@@ -68,6 +68,11 @@ test("isolated PostgreSQL: real permissions, transactions, replay, global top3, 
   await repo.call("admit","c".repeat(64),{route:"unknown",method:"DELETE"});
   assert.equal((await pool.query("select count(*) from bbq_private.rates where expires_at<=clock_timestamp()")).rows[0].count,"0");
   assert.equal((await pool.query("select count(*) from bbq_private.receipts where actions<>'[]'::jsonb")).rows[0].count,"0");
+  // Global exhaustion must not allocate attacker-controlled per-hash rows.
+  await pool.query("delete from bbq_private.rates");
+  await pool.query("insert into bbq_private.rates(bucket,count,expires_at) values('all:g:'||floor(extract(epoch from clock_timestamp())/60),601,clock_timestamp()+interval '1 hour')");
+  assert.equal((await repo.call("admit","e".repeat(64),{route:"unknown",method:"DELETE"})).ok,false);
+  assert.equal((await pool.query("select count(*) from bbq_private.rates where bucket like '%:h:%'")).rows[0].count,"0");
   console.log("PostgreSQL ranking transaction/permission checks passed");
  }finally{await pool.end();}
 });
