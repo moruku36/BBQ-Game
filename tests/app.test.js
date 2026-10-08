@@ -603,12 +603,12 @@ test("the ranking is labelled as this device only, on every board", () => {
   assert.equal((html.replace(/<[^>]*>/g, "").match(/この端末の上位3人/g) || []).length, 3, "HUD, start card and result card");
   assert.match(html, /同じ名前は1人として、ベストだけを残します/);
   assert.match(html, /名前なしは全員「ゲスト」の1枠です/);
-  assert.equal((html.match(/全国ランキングはありません/g) || []).length, 2);
+  assert.equal((html.match(/公開ランキングへの送信は別に選べます/g) || []).length, 2);
   // The HUD board sits inside the game area, before the grill.
   const game = html.slice(html.indexOf('<main class="game"'), html.indexOf("</main>"));
   assert.ok(game.indexOf('id="hudRankTitle"') > 0 && game.indexOf('id="hudRankTitle"') < game.indexOf('id="grill"'));
   const js = ["core.js", "app.js"].map(read).join("\n");
-  assert.doesNotMatch(js, /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource/, "no shared online ranking");
+  assert.doesNotMatch(read("core.js"), /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource/, "rules and device records stay offline");
 });
 
 test("a version 1 best is shown apart and never ranked under the last nickname", () => {
@@ -1345,7 +1345,8 @@ test("the page is static, loads no external resources and has no heat slider", (
   assert.match(html, /<title>BBQ Party<\/title>/);
   assert.doesNotMatch(html, /(?:src|href)="(?:https?:)?\/\//, "no external scripts, styles or fonts");
   assert.doesNotMatch(css, /@import|url\(/);
-  assert.doesNotMatch(js, /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|importScripts/);
+  assert.doesNotMatch(read("core.js"), /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|importScripts/);
+  assert.match(read("ranking-config.js"), /apiBase: ""/);
   assert.doesNotMatch(html, /type="range"/);
   assert.doesNotMatch(html + js, /heat|火力/i);
   assert.equal((html.match(/class="slot"/g) || []).length, 6);
@@ -1353,7 +1354,7 @@ test("the page is static, loads no external resources and has no heat slider", (
   for (const id of Core.INGREDIENT_IDS) {
     assert.match(html, new RegExp('id="ing-' + id + '" data-ingredient="' + id + '"'));
   }
-  assert.match(html, /全国ランキングはありません/);
+  assert.match(html, /公開ランキングへの送信は別に選べます/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /:focus-visible/);
 });
@@ -1420,6 +1421,8 @@ test("the page asks not to be indexed and ships a strict CSP that its own code o
     '<script src="core.js"></script>',
     '<script src="art.js"></script>',
     '<script src="i18n.js"></script>',
+    '<script src="ranking-config.js"></script>',
+    '<script src="ranking.js"></script>',
     '<script src="app.js"></script>',
   ]);
   assert.deepEqual(html.match(/<link rel="stylesheet"[^>]*>/g), ['<link rel="stylesheet" href="styles.css">']);

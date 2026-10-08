@@ -1,0 +1,4 @@
+# Do not deploy this public function until project/access approval.
+[functions.bbq-ranking]
+verify_jwt = false
+entrypoint = "./functions/bbq-ranking/index.js"

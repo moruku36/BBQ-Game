@@ -132,3 +132,7 @@ npm test
 バージョン2は、新しい隔離headless Chrome 153.0.8010.55でも確認しました。360×640・390×844・1280×800で **106項目PASS**、JavaScript例外・CSP違反なし。描画、画面の収まり、操作部、端末内top3、音設定とBGM継続、一時停止・再開、文字選択、共有fallback、faviconを確認しています。[v2検証報告とレビュー画像](BROWSER-VERIFICATION-v2.md)に詳細があります。音の聞こえ方、実端末touch、iOS Safari、OS共有画面は未確認です。今回はローカル検証で、公開反映は本人の最終確認待ちです。
 
 履歴: [BROWSER-VERIFICATION.md](BROWSER-VERIFICATION.md) と `assets/` の画面は、**バージョン1**（4食材、Nodeテスト69件）を実際の Chrome で検証したときの記録です。当時の記録として残しているもので、バージョン2の画面や検証ではありません。
+
+## 共有スコア（実装・未接続）
+
+端末内の記録と別に、共有の上位3スコアと公開同意 UI を実装しています。接続先は空で、Supabase の対象・権限・資格情報の個別承認と実接続検証まで公開送信は無効です。[接続に必要な操作](RANKING-OPERATIONS.md)と[制限・保存期間案](RANKING-PROPOSAL.md)を参照してください。CI は使い捨ての隔離 DB だけで検証します。

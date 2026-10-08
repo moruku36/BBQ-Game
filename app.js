@@ -133,6 +133,15 @@
   const sceneCtx = el.scene.getContext("2d");
   const fxCtx = el.fx.getContext("2d");
   const store = Core.createRecordStore(() => window.localStorage);
+  const online = window.BBQRanking.create({
+    Core, fetch: (...args) => window.fetch(...args),
+    apiBase: window.BBQRankingConfig.apiBase,
+    AbortController: window.AbortController,
+    setTimeout: window.setTimeout, clearTimeout: window.clearTimeout,
+    testLocal: window.location.hostname === "127.0.0.1" && window.BBQRankingConfig.testLocal === true,
+  });
+  let onlineBoard = { status: online.enabled ? "loading" : "disabled", rows: [] };
+  let boardTicket = 0, publishState = "ready", publishName = "", roundTicket = 0;
   const particles = Core.createParticlePool(MAX_PARTICLES);
   const popups = Core.createParticlePool(MAX_POPUPS);
   const timers = new Set();
@@ -158,8 +167,9 @@
   let linkNoticeKey = "";
   let shareStatusKey = "";
 
+  let inputClock = null;
   function now() {
-    return window.performance.now();
+    return inputClock === null ? window.performance.now() : inputClock;
   }
 
   function reducedMotion() {
@@ -984,6 +994,11 @@
     stopLoop();
     clearTimers();
     audio.stopBgm();
+    online.cancel();
+    roundTicket++;
+    publishState = "ready";
+    publishName = "";
+    $("publishConsent").checked = false;
     particles.clear();
     popups.clear();
     if (game) {
@@ -1047,6 +1062,8 @@
     showScreen("game");
     layout();
     game.start();
+    const ticket = roundTicket;
+    online.begin(seed).then(() => { if (ticket === roundTicket) renderOnline(); });
     audio.startBgm(true);
     sayKey("startStatus");
     pump(now());
@@ -1067,6 +1084,10 @@
 
     const results = game.results();
     lastScore = results.score;
+    online.finish(results.score);
+    publishName = displayName(nickname);
+    renderOnline();
+    void refreshOnline();
     const outcome = store.recordScore(nickname, results.score);
     lastOutcome = outcome;
     lastResults = results;
@@ -1143,7 +1164,15 @@
       return;
     }
     audio.unlock();
-    const result = game.tapSlot(index);
+    inputClock = window.performance.now();
+    let result, activeMs;
+    try {
+      activeMs = game.snapshot().activeMs;
+      result = game.tapSlot(index);
+    } finally { inputClock = null; }
+    if (result.type === "placed" || result.type === "collected") {
+      online.record({ t: activeMs, slot: index, ingredient: result.ingredient, type: result.type });
+    }
     if (result.type === "placed") {
       audio.play("place");
       sayKey("placedStatus", { name: ingredientName(result.ingredient), ingredient: result.ingredient });
@@ -1240,6 +1269,45 @@
       ? t("personalBest", { name: displayName(nickname), score: outcome.best, rank: outcome.rank })
       : lastResults.score > 0 ? t("outsideLocal", { count: Core.MAX_PLAYERS }) : t("zeroLocal"));
   }
+  // Online scores never replace or borrow this device's records.
+  function renderOnline() {
+    for (const board of ["onlineStart", "onlineResult"]) {
+      $(board + "Status").textContent = t("online" + onlineBoard.status);
+      for (let i = 0; i < 3; i++) {
+        const row = onlineBoard.rows[i];
+        $(board + "Name-" + i).textContent = row ? row.name : "—";
+        $(board + "Score-" + i).textContent = row ? String(row.score) : "";
+      }
+    }
+    $("publishDisclosure").textContent = t("publishDisclosure", { name: publishName || displayName(nickname), score: lastResults ? lastResults.score : 0 });
+    const state = !online.enabled ? "disabled" : publishState === "ready" && !online.canSubmit() ? "unavailable" : publishState;
+    $("publishStatus").textContent = t("publish" + state);
+    $("publishButton").textContent = t(publishState === "retry" ? "publishRetry" : "publishButton");
+    $("publishButton").disabled = !online.canSubmit() || online.isBusy() || !$("publishConsent").checked;
+    $("publishConsent").disabled = online.isBusy() || publishState === "accepted";
+  }
+  async function refreshOnline() {
+    const ticket = ++boardTicket;
+    onlineBoard = { status: online.enabled ? "loading" : "disabled", rows: [] };
+    renderOnline();
+    const board = await online.top();
+    if (ticket !== boardTicket) return;
+    onlineBoard = board;
+    renderOnline();
+  }
+  async function publishScore() {
+    if (!$("publishConsent").checked || !online.canSubmit() || online.isBusy()) return;
+    const ticket = roundTicket;
+    publishState = "busy";
+    const promise = online.submit(publishName, true);
+    renderOnline();
+    const result = await promise;
+    if (ticket !== roundTicket || result.state === "stale") return;
+    publishState = result.state;
+    renderOnline();
+    if (result.state === "accepted") void refreshOnline();
+  }
+
   function changeLanguage() {
     i18n.setLanguage(i18n.language() === "ja" ? "en" : "ja");
     textCache = {};
@@ -1251,6 +1319,7 @@
     renderRanking();
     renderChallengeInfo();
     renderResultBest();
+    renderOnline();
     const legacyBest = store.load().legacyBest;
     setText("startLegacy", el.startLegacy, legacyBest > 0 ? t("legacyBest", { score: legacyBest }) : "");
     setText("player", el.hudPlayer, displayName(nickname));
@@ -1311,6 +1380,10 @@
       el.nicknameInput.focus();
     });
     el.shareButton.addEventListener("click", onShare);
+    $("onlineStartRefresh").addEventListener("click", refreshOnline);
+    $("onlineResultRefresh").addEventListener("click", refreshOnline);
+    $("publishConsent").addEventListener("change", renderOnline);
+    $("publishButton").addEventListener("click", publishScore);
 
     // Fast taps, double clicks and drags must not select or drag game text.
     // Form fields (nickname, the share link to copy) keep normal selection.
@@ -1379,6 +1452,8 @@
     bind();
     layout();
     showStart();
+    renderOnline();
+    void refreshOnline();
   }
 
   init();

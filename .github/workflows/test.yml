@@ -1,4 +1,4 @@
-name: BBQ language checks
+name: BBQ game and ranking checks
 on:
   pull_request:
   push:
@@ -8,22 +8,47 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: bbq_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-test-only
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: bbq_test
+      PGUSER: postgres
+      PGPASSWORD: isolated-test-only
+      BBQ_TEST_DB: "1"
+      NODE_PATH: ${{ runner.temp }}/bbq-browser/node_modules
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm test
       - name: Isolated Chromium test tooling
         run: |
-          npm install --prefix "$RUNNER_TEMP/bbq-browser" --no-save --ignore-scripts playwright@1.56.1
+          npm install --prefix "$RUNNER_TEMP/bbq-browser" --no-save --ignore-scripts playwright@1.56.1 pg@8.16.3
           "$RUNNER_TEMP/bbq-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: npm test
       - name: Real Chromium in Japanese and English
         env:
           NODE_PATH: ${{ runner.temp }}/bbq-browser/node_modules
           BBQ_ARTIFACT_DIR: ${{ runner.temp }}/bbq-artifacts
         run: node tools/browser-i18n.cjs
+      - name: Chromium and isolated PostgreSQL shared ranking
+        env:
+          BBQ_ARTIFACT_DIR: ${{ runner.temp }}/bbq-artifacts
+        run: node tools/browser-ranking.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -201,7 +201,18 @@
           </ol>
           <p class="board-note" id="startLegacy" hidden></p>
         </div>
-        <p class="card-fine"><span id="i18n-34">同じ名前は1人として、ベストだけを残します。名前なしは全員「ゲスト」の1枠です。記録はこの端末だけに保存されます。全国ランキングはありません。</span></p>
+
+        <div class="board online-board">
+          <h3 class="board-title" id="onlineStartTitle">みんなの上位3スコア</h3>
+          <ol class="board-list" aria-labelledby="onlineStartTitle">
+            <li class="rank-row"><span class="rank-pos">1</span><span class="rank-name" id="onlineStartName-0">—</span><span class="rank-score" id="onlineStartScore-0"></span></li>
+            <li class="rank-row"><span class="rank-pos">2</span><span class="rank-name" id="onlineStartName-1">—</span><span class="rank-score" id="onlineStartScore-1"></span></li>
+            <li class="rank-row"><span class="rank-pos">3</span><span class="rank-name" id="onlineStartName-2">—</span><span class="rank-score" id="onlineStartScore-2"></span></li>
+          </ol>
+          <p class="board-note" id="onlineStartStatus" role="status" aria-live="polite"></p>
+          <button type="button" class="btn btn-quiet" id="onlineStartRefresh">ランキングを更新</button>
+        </div>
+        <p class="card-fine"><span id="i18n-34">同じ名前は1人として、ベストだけを残します。名前なしは全員「ゲスト」の1枠です。記録はこの端末だけに保存されます。公開ランキングへの送信は別に選べます。</span></p>
       </form>
     </section>
 
@@ -237,6 +248,27 @@
             <li class="rank-row is-empty" id="resultRank-1"><span class="rank-pos">2</span><span class="rank-name" id="resultRankName-1">—</span><span class="rank-score" id="resultRankScore-1"></span></li>
             <li class="rank-row is-empty" id="resultRank-2"><span class="rank-pos">3</span><span class="rank-name" id="resultRankName-2">—</span><span class="rank-score" id="resultRankScore-2"></span></li>
           </ol>
+        </div>
+
+        <div class="board online-board">
+          <h3 class="board-title" id="onlineResultTitle">みんなの上位3スコア</h3>
+          <ol class="board-list" aria-labelledby="onlineResultTitle">
+            <li class="rank-row"><span class="rank-pos">1</span><span class="rank-name" id="onlineResultName-0">—</span><span class="rank-score" id="onlineResultScore-0"></span></li>
+            <li class="rank-row"><span class="rank-pos">2</span><span class="rank-name" id="onlineResultName-1">—</span><span class="rank-score" id="onlineResultScore-1"></span></li>
+            <li class="rank-row"><span class="rank-pos">3</span><span class="rank-name" id="onlineResultName-2">—</span><span class="rank-score" id="onlineResultScore-2"></span></li>
+          </ol>
+          <p class="board-note" id="onlineResultStatus" role="status" aria-live="polite"></p>
+          <button type="button" class="btn btn-quiet" id="onlineResultRefresh">ランキングを更新</button>
+        </div>
+
+        <div class="online-publish">
+          <p class="card-note" id="publishDisclosure"></p>
+          <label class="publish-consent" for="publishConsent">
+            <input type="checkbox" id="publishConsent">
+            <span id="publishConsentLabel">名前とスコアの公開に同意する</span>
+          </label>
+          <button type="button" class="btn" id="publishButton" disabled>このスコアを公開する</button>
+          <p class="board-note" id="publishStatus" role="status" aria-live="polite"></p>
         </div>
         <div class="btn-row">
           <button type="button" class="btn btn-primary" id="retryButton">同じチャレンジでもう一度</button>
@@ -281,6 +313,8 @@
   <script src="core.js"></script>
   <script src="art.js"></script>
   <script src="i18n.js"></script>
+  <script src="ranking-config.js"></script>
+  <script src="ranking.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

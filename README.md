@@ -132,3 +132,7 @@ Verified for version 2 by the Node tests (113 tests, all passing): the six-ingre
 Version 2 was also checked in a new isolated headless Chrome 153.0.8010.55: **106 browser checks passed** at 360×640, 390×844 and 1280×800, with no JavaScript exceptions or CSP violations. The checks exercised rendering, screen fit, controls, the local top three, sound settings and continuous BGM scheduling, pause/resume, selection behaviour, sharing fallbacks and favicon decoding. See [the version 2 report and review images](BROWSER-VERIFICATION-v2.md). Audible speaker output, physical phone touch, iOS Safari and the native share sheet remain unverified. This was a local preview; publishing awaits the owner’s final review.
 
 History: [BROWSER-VERIFICATION.md](BROWSER-VERIFICATION.md) and the screenshots in `assets/` record the real Chrome verification of **version 1** (four ingredients, 69 Node tests). They are kept as a record of that release and do not show or verify version 2.
+
+## Optional shared scores (draft)
+
+The bilingual UI now includes a separate public-score board and explicit publication consent. The endpoint remains empty; public submissions are disabled until exact-target Supabase access/credential approvals and live verification. Device bests still work independently. See [ranking operations](RANKING-OPERATIONS.md) and [proposed limits/retention](RANKING-PROPOSAL.md). CI tests use only a disposable database.

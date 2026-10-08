@@ -415,6 +415,11 @@ function boot(options) {
   window.window = window;
   window.document = document;
   window.console = console;
+  window.URL = URL;
+  window.TextEncoder = TextEncoder;
+  window.TextDecoder = TextDecoder;
+  window.AbortController = AbortController;
+  window.fetch = opts.fetch || (() => { throw new Error("unexpected network request"); });
   window.devicePixelRatio = opts.devicePixelRatio || 2;
   window.performance = { now: () => env.clock };
   window.navigator = Object.assign({ language: "ja" }, opts.navigator);
@@ -483,7 +488,7 @@ function boot(options) {
 
   env.window = window;
   const context = vm.createContext(window);
-  for (const file of ["core.js", "art.js", "i18n.js", "app.js"]) {
+  for (const file of ["core.js", "art.js", "i18n.js", "ranking-config.js", "ranking.js", "app.js"]) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, file), "utf8"), context, { filename: file });
   }
 

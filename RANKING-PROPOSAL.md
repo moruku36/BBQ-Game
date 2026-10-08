@@ -62,3 +62,6 @@ Expiry is enforced on reads/acceptance even before physical cleanup. Bounded cle
 Morning design approval, or yesterday's planning approval, is **not a substitute** for the required, specific approval **at execution time** for generating/configuring persistent credentials or materially changing access/security. Before each such operation, identify the exact project/ref, credential role and destination (without exposing secret values), or exact schema/RLS/grant/public-function change, and obtain the required individual approval. A project/budget decision also does not authorise a paid upgrade.
 
 This appendix is a recommendation for review, not a user decision. No live DB operation, service creation, credential generation/configuration or security-access change is performed by saving this document. The Japanese/English implementation remains unmerged in draft PR #3.
+
+
+Implementation update: PR #3 now contains the proposed private SQL/API and consent UI with no live endpoint. See [RANKING-OPERATIONS.md](RANKING-OPERATIONS.md) for exact pending approvals, request-driven cleanup limitations and isolated CI scope. This code addition does not approve or apply the proposal.
