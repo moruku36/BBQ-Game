@@ -40,7 +40,7 @@ revoke all on all tables in schema bbq_private from public, anon, authenticated;
 grant select, insert, update, delete on all tables in schema bbq_private to service_role;
 
 create or replace function public.bbq_dispatch(p_action text, p_hash text, p_payload jsonb)
-returns jsonb language plpgsql security invoker set search_path=pg_catalog set lock_timeout='2s' as $
+returns jsonb language plpgsql security invoker set search_path=pg_catalog set lock_timeout='2s' as $$
 declare
   ts timestamptz := clock_timestamp();
   minute bigint := floor(extract(epoch from ts)/60);

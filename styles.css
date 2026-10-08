@@ -1282,6 +1282,6 @@ html[lang="en"] .ing-meta, html[lang="en"] .ing-window { font-size: 0.56rem; }
 /* Public and device records are visibly separate; overlays remain scrollable. */
 .online-board { border-top: 2px dashed #c6b89d; padding-top: 16px; }
 .online-publish { margin: 18px 0; padding: 12px; border: 2px solid #c6b89d; border-radius: 12px; }
-.publish-consent { display: flex; align-items: center; gap: 10px; margin: 12px 0; font-size: 14px; }
+.publish-consent { min-height: 44px; display: flex; align-items: center; gap: 10px; margin: 12px 0; font-size: 14px; }
 .publish-consent input { width: 24px; height: 24px; flex-shrink: 0; accent-color: #397f3b; }
 .online-board .board-note, .online-publish .board-note { min-height: 1.5em; }
