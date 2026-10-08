@@ -1,5 +1,7 @@
 # BBQ Party browser verification
 
+> Historical record for **version 1** (four ingredients, PR #1). Everything below, including the screenshots, describes that release and is kept unchanged. It does not show or verify version 2 (six ingredients, local top three, BGM); see the README for the version 2 verification status.
+
 Chrome 153.0.8010.55, real headless browser with a new disposable profile and a loopback HTTP preview. No existing browser profile or foreground desktop UI was used.
 
 - **58 passed, 0 failed** across 390×844, 360×640, and 1280×800 viewports.

@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#fff6e0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>BBQ Party</title>
+  <link rel="icon" href="favicon.ico" sizes="32x32">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -15,13 +20,13 @@
       <header class="topbar">
         <h1 class="brand">BBQ Party</h1>
         <span class="player" id="hudPlayer"></span>
-        <button type="button" class="icon-btn" id="muteButton" aria-pressed="false" aria-label="サウンド: オン（押すとミュート）">
+        <button type="button" class="icon-btn" id="soundButton" aria-haspopup="dialog" aria-label="音の設定">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
             <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>
             <path class="snd-wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             <path class="snd-off" d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
           </svg>
-          <span class="icon-btn-text" id="muteText">音あり</span>
+          <span class="icon-btn-text" id="soundText">音あり</span>
         </button>
         <button type="button" class="icon-btn" id="pauseButton" aria-label="一時停止">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
@@ -54,6 +59,15 @@
         </div>
       </section>
 
+      <section class="rank" aria-labelledby="hudRankTitle">
+        <h2 class="rank-title" id="hudRankTitle">この端末の<wbr>上位3人</h2>
+        <ol class="rank-list">
+          <li class="rank-row is-empty" id="hudRank-0"><span class="rank-pos">1</span><span class="rank-name" id="hudRankName-0">—</span><span class="rank-score" id="hudRankScore-0"></span></li>
+          <li class="rank-row is-empty" id="hudRank-1"><span class="rank-pos">2</span><span class="rank-name" id="hudRankName-1">—</span><span class="rank-score" id="hudRankScore-1"></span></li>
+          <li class="rank-row is-empty" id="hudRank-2"><span class="rank-pos">3</span><span class="rank-name" id="hudRankName-2">—</span><span class="rank-score" id="hudRankScore-2"></span></li>
+        </ol>
+      </section>
+
       <section class="popular" aria-label="いま人気の食材">
         <canvas class="popular-icon" id="popularIcon" width="48" height="48" aria-hidden="true"></canvas>
         <div class="popular-main">
@@ -83,30 +97,60 @@
 
       <p class="status" id="statusLine" role="status" aria-live="polite"></p>
 
-      <section class="tray" id="tray" role="group" aria-label="食材をえらぶ">
+      <section class="tray" id="tray" role="group" aria-label="食材トレイ">
         <button type="button" class="ing" id="ing-shrimp" data-ingredient="shrimp" aria-pressed="true">
           <canvas class="ing-icon" id="ingIcon-shrimp" width="52" height="52" aria-hidden="true"></canvas>
-          <span class="ing-name" id="ingName-shrimp"></span>
-          <span class="ing-meta" id="ingMeta-shrimp"></span>
+          <span class="ing-text">
+            <span class="ing-name" id="ingName-shrimp"></span>
+            <span class="ing-meta" id="ingMeta-shrimp"></span>
+            <span class="ing-window" id="ingWindow-shrimp"></span>
+          </span>
           <span class="ing-pop" id="ingPop-shrimp" hidden>人気 +50</span>
         </button>
         <button type="button" class="ing" id="ing-sausage" data-ingredient="sausage" aria-pressed="false">
           <canvas class="ing-icon" id="ingIcon-sausage" width="52" height="52" aria-hidden="true"></canvas>
-          <span class="ing-name" id="ingName-sausage"></span>
-          <span class="ing-meta" id="ingMeta-sausage"></span>
+          <span class="ing-text">
+            <span class="ing-name" id="ingName-sausage"></span>
+            <span class="ing-meta" id="ingMeta-sausage"></span>
+            <span class="ing-window" id="ingWindow-sausage"></span>
+          </span>
           <span class="ing-pop" id="ingPop-sausage" hidden>人気 +50</span>
+        </button>
+        <button type="button" class="ing" id="ing-shiitake" data-ingredient="shiitake" aria-pressed="false">
+          <canvas class="ing-icon" id="ingIcon-shiitake" width="52" height="52" aria-hidden="true"></canvas>
+          <span class="ing-text">
+            <span class="ing-name" id="ingName-shiitake"></span>
+            <span class="ing-meta" id="ingMeta-shiitake"></span>
+            <span class="ing-window" id="ingWindow-shiitake"></span>
+          </span>
+          <span class="ing-pop" id="ingPop-shiitake" hidden>人気 +50</span>
         </button>
         <button type="button" class="ing" id="ing-kalbi" data-ingredient="kalbi" aria-pressed="false">
           <canvas class="ing-icon" id="ingIcon-kalbi" width="52" height="52" aria-hidden="true"></canvas>
-          <span class="ing-name" id="ingName-kalbi"></span>
-          <span class="ing-meta" id="ingMeta-kalbi"></span>
+          <span class="ing-text">
+            <span class="ing-name" id="ingName-kalbi"></span>
+            <span class="ing-meta" id="ingMeta-kalbi"></span>
+            <span class="ing-window" id="ingWindow-kalbi"></span>
+          </span>
           <span class="ing-pop" id="ingPop-kalbi" hidden>人気 +50</span>
         </button>
         <button type="button" class="ing" id="ing-corn" data-ingredient="corn" aria-pressed="false">
           <canvas class="ing-icon" id="ingIcon-corn" width="52" height="52" aria-hidden="true"></canvas>
-          <span class="ing-name" id="ingName-corn"></span>
-          <span class="ing-meta" id="ingMeta-corn"></span>
+          <span class="ing-text">
+            <span class="ing-name" id="ingName-corn"></span>
+            <span class="ing-meta" id="ingMeta-corn"></span>
+            <span class="ing-window" id="ingWindow-corn"></span>
+          </span>
           <span class="ing-pop" id="ingPop-corn" hidden>人気 +50</span>
+        </button>
+        <button type="button" class="ing" id="ing-steak" data-ingredient="steak" aria-pressed="false">
+          <canvas class="ing-icon" id="ingIcon-steak" width="52" height="52" aria-hidden="true"></canvas>
+          <span class="ing-text">
+            <span class="ing-name" id="ingName-steak"></span>
+            <span class="ing-meta" id="ingMeta-steak"></span>
+            <span class="ing-window" id="ingWindow-steak"></span>
+          </span>
+          <span class="ing-pop" id="ingPop-steak" hidden>人気 +50</span>
         </button>
       </section>
     </main>
@@ -118,7 +162,7 @@
         <p class="card-eyebrow">60秒 グリルチャレンジ</p>
         <h2 class="card-title" id="startTitle">BBQ Party</h2>
         <ol class="howto">
-          <li><b>食材をえらぶ</b>（下のトレイ）</li>
+          <li><b>食材トレイ</b>から食材をえらぶ</li>
           <li><b>空いた網をタップ</b>して置く</li>
           <li>焼けたら<b>もう一度タップ</b>して回収</li>
         </ol>
@@ -128,7 +172,7 @@
           <li><span class="chip chip-perfect">★ PERFECT</span>100%</li>
           <li><span class="chip chip-burnt">✕ コゲ</span>0点・コンボ終了</li>
         </ul>
-        <p class="card-note">「いま人気」の食材をうまく焼くと +50点。コンボで最大2倍。</p>
+        <p class="card-note">「いま人気」は +50点。コンボで最大2倍。★PERFECTの幅は食材でちがいます（しいたけは広め、ステーキはせまめ）。</p>
 
         <label class="field" for="nicknameInput">
           <span class="field-label">ニックネーム（なくてもOK・12文字まで）</span>
@@ -136,14 +180,26 @@
         </label>
         <p class="field-error" id="nicknameError" role="alert" hidden></p>
 
-        <button type="submit" class="btn btn-primary" id="startButton">スタート</button>
+        <div class="start-actions">
+          <button type="button" class="btn" id="startSoundButton" aria-haspopup="dialog">♪ 音の設定</button>
+          <button type="submit" class="btn btn-primary" id="startButton">スタート</button>
+        </div>
 
         <p class="card-meta">
-          <span id="challengeInfo"></span>
+          <span class="copyable" id="challengeInfo"></span>
           <span id="linkNotice" hidden></span>
         </p>
-        <p class="card-meta"><span id="startBest"></span></p>
-        <p class="card-fine">記録はこの端末だけに保存されます。全国ランキングはありません。</p>
+
+        <div class="board">
+          <h3 class="board-title" id="startRankTitle">この端末の上位3人</h3>
+          <ol class="board-list" aria-labelledby="startRankTitle">
+            <li class="rank-row is-empty" id="startRank-0"><span class="rank-pos">1</span><span class="rank-name" id="startRankName-0">—</span><span class="rank-score" id="startRankScore-0"></span></li>
+            <li class="rank-row is-empty" id="startRank-1"><span class="rank-pos">2</span><span class="rank-name" id="startRankName-1">—</span><span class="rank-score" id="startRankScore-1"></span></li>
+            <li class="rank-row is-empty" id="startRank-2"><span class="rank-pos">3</span><span class="rank-name" id="startRankName-2">—</span><span class="rank-score" id="startRankScore-2"></span></li>
+          </ol>
+          <p class="board-note" id="startLegacy" hidden></p>
+        </div>
+        <p class="card-fine">同じ名前は1人として、ベストだけを残します。名前なしは全員「ゲスト」の1枠です。記録はこの端末だけに保存されます。全国ランキングはありません。</p>
       </form>
     </section>
 
@@ -152,6 +208,7 @@
         <h2 class="card-title" id="pauseTitle">一時停止中</h2>
         <p class="card-note" id="pauseReason">タイマーも食材も止まっています。</p>
         <button type="button" class="btn btn-primary" id="resumeButton">つづける</button>
+        <button type="button" class="btn" id="pauseSoundButton" aria-haspopup="dialog">♪ 音の設定</button>
       </div>
     </section>
 
@@ -161,13 +218,22 @@
         <h2 class="card-title" id="resultTitle">けっか</h2>
         <p class="result-player"><span id="resultNickname"></span> さんのスコア</p>
         <p class="result-score"><strong id="resultScore">0</strong><span>点</span></p>
-        <p class="result-newbest" id="resultNewBest" hidden>★ この端末のベスト更新！</p>
+        <p class="result-newbest" id="resultNewBest" hidden>★ ベスト更新！</p>
         <dl class="result-stats">
           <div><dt>★ PERFECT</dt><dd id="resultPerfect">0</dd></div>
           <div><dt>✕ コゲ</dt><dd id="resultBurned">0</dd></div>
           <div><dt>最大コンボ</dt><dd id="resultMaxCombo">0</dd></div>
         </dl>
         <p class="card-meta"><span id="resultBest"></span></p>
+        <p class="board-note" id="resultSaveNote" hidden>この端末に保存できませんでした。ページを閉じると記録は消えます。</p>
+        <div class="board">
+          <h3 class="board-title" id="resultRankTitle">この端末の上位3人</h3>
+          <ol class="board-list" aria-labelledby="resultRankTitle">
+            <li class="rank-row is-empty" id="resultRank-0"><span class="rank-pos">1</span><span class="rank-name" id="resultRankName-0">—</span><span class="rank-score" id="resultRankScore-0"></span></li>
+            <li class="rank-row is-empty" id="resultRank-1"><span class="rank-pos">2</span><span class="rank-name" id="resultRankName-1">—</span><span class="rank-score" id="resultRankScore-1"></span></li>
+            <li class="rank-row is-empty" id="resultRank-2"><span class="rank-pos">3</span><span class="rank-name" id="resultRankName-2">—</span><span class="rank-score" id="resultRankScore-2"></span></li>
+          </ol>
+        </div>
         <div class="btn-row">
           <button type="button" class="btn btn-primary" id="retryButton">同じチャレンジでもう一度</button>
           <button type="button" class="btn" id="shareButton">チャレンジのリンクを共有</button>
@@ -179,8 +245,30 @@
           <span class="field-label">このリンクをコピーして送ってください</span>
           <input class="field-input" id="shareFallbackText" type="text" readonly>
         </label>
-        <p class="card-meta"><span id="resultSeed"></span></p>
+        <p class="card-meta"><span class="copyable" id="resultSeed"></span></p>
         <p class="card-fine">記録はこの端末だけに保存されます。全国ランキングはありません。リンクにニックネームは入りません。</p>
+      </div>
+    </section>
+
+    <section class="overlay overlay-top" id="soundOverlay" role="dialog" aria-modal="true" aria-labelledby="soundTitle" hidden>
+      <div class="card card-small">
+        <h2 class="card-title" id="soundTitle">音の設定</h2>
+        <div class="sound-row" role="group" aria-labelledby="seLabel">
+          <span class="sound-label" id="seLabel">効果音</span>
+          <button type="button" class="btn sound-toggle" id="seToggle" aria-pressed="true" aria-label="効果音">♪ オン</button>
+          <button type="button" class="step-btn" id="seDown" aria-label="効果音の音量を下げる">−</button>
+          <span class="sound-level" id="seLevel" role="status">5/5</span>
+          <button type="button" class="step-btn" id="seUp" aria-label="効果音の音量を上げる">＋</button>
+        </div>
+        <div class="sound-row" role="group" aria-labelledby="bgmLabel">
+          <span class="sound-label" id="bgmLabel">BGM</span>
+          <button type="button" class="btn sound-toggle" id="bgmToggle" aria-pressed="true" aria-label="BGM">♪ オン</button>
+          <button type="button" class="step-btn" id="bgmDown" aria-label="BGMの音量を下げる">−</button>
+          <span class="sound-level" id="bgmLevel" role="status">3/5</span>
+          <button type="button" class="step-btn" id="bgmUp" aria-label="BGMの音量を上げる">＋</button>
+        </div>
+        <p class="card-fine">BGMはこのゲーム用に作った短いオリジナル曲で、プレイ中だけ流れます。設定はこの端末に保存されます。</p>
+        <button type="button" class="btn btn-primary" id="soundCloseButton">とじる</button>
       </div>
     </section>
   </div>

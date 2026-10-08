@@ -20,8 +20,10 @@
   const FOOD_COLORS = {
     shrimp: [[164, 172, 188], [246, 160, 120], [255, 128, 80], [176, 78, 44], [46, 34, 32]],
     sausage: [[236, 160, 150], [210, 112, 80], [178, 80, 44], [112, 52, 30], [40, 30, 28]],
+    shiitake: [[184, 146, 108], [156, 110, 74], [128, 84, 52], [82, 52, 34], [38, 30, 26]],
     kalbi: [[204, 62, 66], [168, 84, 60], [136, 70, 42], [86, 46, 30], [36, 28, 26]],
     corn: [[252, 228, 120], [250, 204, 80], [242, 178, 48], [168, 108, 40], [52, 42, 32]],
+    steak: [[190, 54, 60], [158, 80, 58], [122, 62, 40], [76, 42, 28], [34, 26, 24]],
   };
   const STOP_AT = [0, 0.8, 1, 1.5, 1.62];
 
@@ -357,7 +359,141 @@
     ctx.restore();
   }
 
-  const FOOD_PAINTERS = { shrimp: drawShrimp, sausage: drawSausage, kalbi: drawKalbi, corn: drawCorn };
+  // Seen from above: a round cap with a star cut, the stem peeking out below.
+  function drawShiitake(ctx, s, d, color) {
+    const rx = 0.36 * s;
+    const ry = 0.25 * s;
+    const cy = -0.04 * s;
+    const depth = 0.07 * s;
+    const flesh = d > 1.5 ? [72, 60, 50] : mix([246, 234, 210], [226, 198, 150], clamp(d, 0, 1));
+
+    ctx.fillStyle = css(shade(flesh, -0.28));
+    roundedRect(ctx, -0.075 * s, 0.1 * s + depth * 0.5, 0.15 * s, 0.25 * s, 0.05 * s);
+    ctx.fill();
+    ctx.fillStyle = css(flesh);
+    roundedRect(ctx, -0.075 * s, 0.1 * s, 0.15 * s, 0.23 * s, 0.05 * s);
+    ctx.fill();
+
+    ctx.fillStyle = css(shade(color, -0.4));
+    ctx.beginPath();
+    ctx.ellipse(0, cy + depth, rx, ry, 0, 0, TAU);
+    ctx.fill();
+    const top = ctx.createRadialGradient(-0.1 * s, cy - 0.1 * s, rx * 0.1, 0, cy, rx * 1.1);
+    top.addColorStop(0, css(shade(color, 0.3)));
+    top.addColorStop(1, css(shade(color, -0.14)));
+    ctx.fillStyle = top;
+    ctx.beginPath();
+    ctx.ellipse(0, cy, rx, ry, 0, 0, TAU);
+    ctx.fill();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, cy, rx, ry, 0, 0, TAU);
+    ctx.clip();
+
+    // star cut
+    ctx.strokeStyle = css(flesh);
+    ctx.lineWidth = 0.05 * s;
+    ctx.lineCap = "round";
+    for (let i = 0; i < 3; i += 1) {
+      const angle = (i * Math.PI) / 3 + 0.26;
+      const dx = Math.cos(angle) * rx * 0.5;
+      const dy = Math.sin(angle) * ry * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(-dx, cy - dy);
+      ctx.lineTo(dx, cy + dy);
+      ctx.stroke();
+    }
+
+    const marks = grillMarkAlpha(d);
+    if (marks > 0) {
+      ctx.strokeStyle = "rgba(40,22,12," + marks * 0.8 + ")";
+      ctx.lineWidth = 0.03 * s;
+      for (let i = -1; i <= 1; i += 2) {
+        ctx.beginPath();
+        ctx.moveTo(i * 0.27 * s - 0.05 * s, cy - ry);
+        ctx.lineTo(i * 0.27 * s + 0.05 * s, cy + ry);
+        ctx.stroke();
+      }
+    }
+
+    ctx.fillStyle = "rgba(255,255,255," + (d > 1.5 ? 0.06 : 0.2) + ")";
+    ctx.beginPath();
+    ctx.ellipse(-0.14 * s, cy - 0.11 * s, 0.11 * s, 0.045 * s, -0.4, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // A thick slab: deep side face, fat rim on the left, one-way grill marks
+  // and a pat of butter, so it never reads as the thin kalbi slice.
+  function drawSteak(ctx, s, d, color) {
+    ctx.rotate(-0.08);
+    const points = [
+      [-0.4, -0.06], [-0.3, -0.25], [-0.02, -0.31], [0.28, -0.27],
+      [0.42, -0.08], [0.36, 0.13], [0.08, 0.21], [-0.26, 0.17],
+    ].map((p) => [p[0] * s, p[1] * s]);
+    const depth = 0.13 * s;
+    const fat = d > 1.5 ? [74, 60, 50] : mix([250, 232, 214], [236, 198, 142], clamp(d, 0, 1));
+
+    ctx.fillStyle = css(shade(color, -0.48));
+    blob(ctx, points, depth);
+    ctx.fill();
+    ctx.fillStyle = css(shade(color, -0.3));
+    blob(ctx, points, depth * 0.5);
+    ctx.fill();
+
+    const top = ctx.createLinearGradient(0, -0.31 * s, 0, 0.21 * s);
+    top.addColorStop(0, css(shade(color, 0.18)));
+    top.addColorStop(1, css(shade(color, -0.1)));
+    ctx.fillStyle = top;
+    blob(ctx, points, 0);
+    ctx.fill();
+
+    ctx.save();
+    blob(ctx, points, 0);
+    ctx.clip();
+
+    // fat rim down the left edge
+    ctx.strokeStyle = css(fat);
+    ctx.lineWidth = 0.11 * s;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(points[1][0], points[1][1]);
+    ctx.quadraticCurveTo(points[0][0], points[0][1], points[7][0], points[7][1]);
+    ctx.stroke();
+
+    const marks = grillMarkAlpha(d);
+    if (marks > 0) {
+      ctx.strokeStyle = "rgba(32,16,10," + marks + ")";
+      ctx.lineWidth = 0.045 * s;
+      for (let i = -1; i <= 2; i += 1) {
+        const x = i * 0.19 * s - 0.04 * s;
+        ctx.beginPath();
+        ctx.moveTo(x - 0.12 * s, -0.34 * s);
+        ctx.lineTo(x + 0.12 * s, 0.26 * s);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    // butter pat
+    const butter = d > 1.5 ? [66, 54, 44] : mix([255, 240, 164], [250, 214, 110], clamp(d, 0, 1));
+    ctx.fillStyle = css(shade(butter, -0.25));
+    roundedRect(ctx, 0.03 * s, -0.11 * s, 0.17 * s, 0.13 * s, 0.03 * s);
+    ctx.fill();
+    ctx.fillStyle = css(butter);
+    roundedRect(ctx, 0.03 * s, -0.13 * s, 0.17 * s, 0.12 * s, 0.03 * s);
+    ctx.fill();
+  }
+
+  const FOOD_PAINTERS = {
+    shrimp: drawShrimp,
+    sausage: drawSausage,
+    shiitake: drawShiitake,
+    kalbi: drawKalbi,
+    corn: drawCorn,
+    steak: drawSteak,
+  };
 
   // look.doneness = age / ideal time, look.burnt forces the charred look.
   function drawFood(ctx, id, x, y, size, look) {
@@ -397,14 +533,15 @@
   // ---- timing bar ------------------------------------------------------------
 
   // Zones differ by height and hatching as well as colour: the PERFECT zone is
-  // the tall block with a star, BURNT is cross-hatched.
+  // the tall block with a star, BURNT is cross-hatched. The PERFECT block is
+  // drawn to scale, so a narrow window looks narrow (but never under 3px).
   function drawTimingBar(ctx, x, y, w, h, windows, ageMs) {
     const total = windows.burnMs * 1.12;
     const at = (ms) => x + (clamp(ms, 0, total) / total) * w;
     const xGood = at(windows.goodStartMs);
     const xPerfect = at(windows.perfectStartMs);
-    const xPerfectEnd = at(windows.perfectEndMs);
     const xBurn = at(windows.burnMs);
+    const xPerfectEnd = Math.max(at(windows.perfectEndMs), Math.min(xPerfect + 3, xBurn));
 
     ctx.save();
     ctx.fillStyle = "rgba(20,14,12,0.78)";
