@@ -600,7 +600,7 @@ test("a round without points is not recorded and says so", () => {
 
 test("the ranking is labelled as this device only, on every board", () => {
   const html = read("index.html");
-  assert.equal((html.match(/この端末の(?:<wbr>)?上位3人/g) || []).length, 3, "HUD, start card and result card");
+  assert.equal((html.replace(/<[^>]*>/g, "").match(/この端末の上位3人/g) || []).length, 3, "HUD, start card and result card");
   assert.match(html, /同じ名前は1人として、ベストだけを残します/);
   assert.match(html, /名前なしは全員「ゲスト」の1枠です/);
   assert.equal((html.match(/全国ランキングはありません/g) || []).length, 2);
