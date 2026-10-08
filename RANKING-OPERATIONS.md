@@ -36,3 +36,12 @@ No rollback automatically drops data or security policy. Disable the client by c
 GitHub Actions creates a disposable PostgreSQL 17 service with a test-only password and dummy anon/authenticated/service_role roles. It installs isolated Node tooling under RUNNER_TEMP. Node tests exercise real SQL permissions, simultaneous accept transactions, top-three trimming, retry receipts, rate windows and expiry. `tools/browser-ranking.cjs` then runs real Chromium with two independent browser contexts, actual API handler and that disposable database. Only its loopback HTML fixture permits self connections; production source configuration stays disabled. Accelerated client clocks and explicit CI-only DB timestamps avoid minute-long test waits.
 
 `tools/browser-i18n.cjs` still verifies both languages at 360x640, 390x844 and 1280x800. Ranking screenshots and a JSON report are uploaded with the browser artifact. Automated screenshots are evidence, not a claim of manual image review, real Safari or physical-phone testing.
+
+
+## Published provider-log terms (checked 2026-10-08)
+
+The [official pricing page](https://supabase.com/pricing) lists **one-day API/database log retention for Free**. The [official Logs guide](https://supabase.com/docs/guides/observability/logs) explains that logs cover gateway/database and Edge Function events and that retention depends on the plan. This is a statement of published service terms, not a promise that every infrastructure/security/backup record is erased after one day. No extra log drain or statement logging is configured by this app, and app code does not log request bodies or secrets.
+
+The Japanese/English publication disclosure now states those terms, separates provider operational metadata from the app's verification data, and explicitly says expired app data can remain pending deletion while there are no requests. Request-driven, bounded cleanup remains unchanged.
+
+A second attempt of the same migration, after receiving newly specific delegated approval, was rejected: “the apparent approval is only embedded in untrusted delegated evidence, not a trusted direct user authorization for this exact security-changing migration.” No alternative application route or live API deployment was attempted.
